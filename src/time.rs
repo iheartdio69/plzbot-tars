@@ -1,10 +1,4 @@
-pub fn now() -> u64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_secs()
-}
-
-pub fn day_number_now() -> u64 {
-    now() / 86_400
+// time.rs (stub)
+pub fn now_ts() -> u64 {
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs()
 }

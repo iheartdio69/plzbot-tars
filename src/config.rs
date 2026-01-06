@@ -1,65 +1,114 @@
-// ================= CONFIG =================
+// config.rs
+use std::env;
 
-pub const HELIUS_API_KEY: &str = "PUT_YOUR_KEY_HERE";
-pub const HELIUS_ADDR_URL: &str = "https://api-mainnet.helius-rpc.com/v0/addresses";
-pub const PUMP_FUN_PROGRAM: &str = "6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P";
+#[derive(Debug, Clone)]
+pub struct Config {
+    // Existing fields...
+    pub helius_api_key: String,
+    pub helius_rpc_url: String,
+    pub helius_addr_url: String,
+    pub pump_fun_program: String,
 
-pub const MAX_ACTIVE_COINS: usize = 3;
+    pub fetch_limit: usize,
 
-// NOTE: your file said "3m" but was 400s. Make it explicit:
-pub const WINDOW_SECS: u64 = 180; // 3 minutes (change if you want)
-pub const LOOP_SLEEP_SECS: u64 = 5;
-pub const FETCH_LIMIT: usize = 100;
+    pub main_loop_sleep: u64,
+    pub market_poll_secs: u64,
 
-pub const DAILY_CAP: u64 = 33_000;
+    pub window_secs: u64,
+    pub events_keep_secs: u64,
+    pub snapshot_interval_secs: u64,
 
-pub const SNAPSHOT_INTERVAL_SECS: u64 = 90;
+    pub min_scan_age_secs: u64,
+    pub max_coin_age_secs: u64,
+    pub min_age_secs: u64,
 
-pub const MIN_AGE_SECS: u64 = 60;
-pub const MIN_SIGNERS_FOR_TARGET: usize = 20;
-pub const MIN_TX_FOR_TARGET: usize = 40;
+    pub min_watch_fdv_usd: f64,
+    pub max_watch_fdv_usd: f64,
+    pub min_call_fdv_usd: f64,
+    pub max_call_fdv_usd: f64,
+    pub min_liq_usd: f64,
 
-pub const SCORE_TARGET: i32 = 70;
-pub const SCORE_STRONG: i32 = 85;
-pub const SCORE_DEMOTE: i32 = 45;
-pub const DEMOTE_STREAK: u8 = 4;
+    pub score_target: i32,
+    pub score_demote: i32,
+    pub demote_streak: u8,
 
-pub const ACCEL_WALLET_GROWTH_PCT: f64 = 0.50;
-pub const ACCEL_TX_GROWTH_PCT: f64 = 0.75;
+    pub min_signers_for_target: usize,
+    pub min_tx_for_target: usize,
 
-// Whale tiers
-pub const BELUGA_SOL_TX: f64 = 2.0;
-pub const BLUE_SOL_TX: f64 = 5.0;
+    pub max_active_coins: usize,
 
-// Noise mints
-pub const SOL_MINT: &str = "So11111111111111111111111111111111111111112";
-pub const USDC_MINT: &str = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
+    pub beluga_sol_tx: f64,
+    pub blue_sol_tx: f64,
 
-// Dedup
-pub const SEEN_SIG_CAP: usize = 10_000;
+    pub avoid_bonk: bool,
 
-// Resolver timing
-pub const RESOLVE_T5_SECS: u64 = 5 * 60;
-pub const RESOLVE_T15_SECS: u64 = 15 * 60;
-pub const RESOLVE_CHECK_EVERY_SECS: u64 = 30;
+    pub debug_every_n_scans: u64,
+    pub debug_verbose_calls: bool,
 
-// Keep enough history for resolver + buffer
-pub const EVENTS_KEEP_SECS: u64 = RESOLVE_T15_SECS + 5 * 60;
+    // New for discovery
+    pub market_discovery_enabled: bool,
+    pub market_discovery_queries: Vec<String>,
+    pub market_discovery_every_secs: u64,
+    pub market_discovery_top_n: usize,
+    pub discovery_min_fdv_usd: f64,
+    pub discovery_min_liq_usd: f64,
+    pub discovery_min_tx_5m: u64,
+}
 
-// Win/Loss rules
-pub const WIN_WALLET_MULT: f64 = 1.70;
-pub const WIN_TX_MULT: f64 = 2.20;
-pub const MID_WALLET_MULT: f64 = 1.25;
-pub const MID_TX_MULT: f64 = 1.35;
+fn getenv(name: &str, default: &str) -> String {
+    env::var(name).unwrap_or_else(|_| default.to_string())
+}
 
-// Cadence
-pub const SAVE_EVERY_SECS: u64 = 60;
-pub const PRINT_TOP_WALLETS_EVERY_SECS: u64 = 180;
+fn get_u64(name: &str, default: u64) -> u64 {
+    getenv(name, &default.to_string()).parse().unwrap_or(default)
+}
 
-// ================= MARKET (DEXSCREENER) =================
-pub const MARKET_POLL_SECS: u64 = 20;
+fn get_usize(name: &str, default: usize) -> usize {
+    getenv(name, &default.to_string()).parse().unwrap_or(default)
+}
 
-pub const MAX_FDV_USD: f64 = 250_000.0;
-pub const MIN_LIQ_USD: f64 = 5_000.0;
-pub const PRICE_UP_BOOST: i32 = 10;
-pub const FDV_OK_BOOST: i32 = 5;
+fn get_i32(name: &str, default: i32) -> i32 {
+    getenv(name, &default.to_string()).parse().unwrap_or(default)
+}
+
+fn get_f64(name: &str, default: f64) -> f64 {
+    getenv(name, &default.to_string()).parse().unwrap_or(default)
+}
+
+fn get_bool(name: &str, default: bool) -> bool {
+    match getenv(name, if default { "true" } else { "false" }).to_lowercase().as_str() {
+        "1" | "true" | "yes" | "y" | "on" => true,
+        "0" | "false" | "no" | "n" | "off" => false,
+        _ => default,
+    }
+}
+
+fn get_csv(name: &str, default: &str) -> Vec<String> {
+    getenv(name, default).split(',').map(|s| s.trim().to_string()).collect()
+}
+
+pub fn load_config() -> Config {
+    // Existing...
+    let helius_api_key = getenv("HELIUS_API_KEY", "");
+    // ... (all existing)
+
+    Config {
+        // Existing fields...
+        helius_api_key,
+        // ...
+
+        avoid_bonk: get_bool("AVOID_BONK", true),
+
+        debug_every_n_scans: get_u64("DEBUG_EVERY_N_SCANS", 100),
+        debug_verbose_calls: get_bool("DEBUG_VERBOSE_CALLS", false),
+
+        // New
+        market_discovery_enabled: get_bool("MARKET_DISCOVERY_ENABLED", true),
+        market_discovery_queries: get_csv("MARKET_DISCOVERY_QUERIES", "pump,solana,raydium"),
+        market_discovery_every_secs: get_u64("MARKET_DISCOVERY_EVERY_SECS", 60),
+        market_discovery_top_n: get_usize("MARKET_DISCOVERY_TOP_N", 50),
+        discovery_min_fdv_usd: get_f64("DISCOVERY_MIN_FDV_USD", 15000.0),
+        discovery_min_liq_usd: get_f64("DISCOVERY_MIN_LIQ_USD", 5000.0),
+        discovery_min_tx_5m: get_u64("DISCOVERY_MIN_TX_5M", 20),
+    }
+}
