@@ -29,12 +29,13 @@ async fn main() {
 
     if let Err(e) = load_reputation() {
         eprintln!(
-            "{}⚠️ Failed to load reputation files:{} {}",
-            c_yellow, c_reset, e
+            "{red}⚠️ reputation load failed:{reset} {}",
+            e,
+            red = c_red,
+            reset = c_reset
         );
     }
 
-    // autosave
     tokio::spawn(async {
         let mut interval = tokio::time::interval(Duration::from_secs(300));
         loop {
@@ -53,71 +54,58 @@ async fn main() {
     let mut discovery = MarketDiscovery::default();
     let mut shadow = scoring::shadow::ShadowMap::new();
 
-    // PumpPortal -> stream new token mints into the bot
     let (pump_tx, mut pump_rx) = mpsc::channel::<String>(10_000);
     let cfg_pp = cfg.clone();
     tokio::spawn(async move {
-        pumpportal::client::run(cfg_pp, pump_tx).await;
+        pumpportal::client::run(&cfg_pp, pump_tx).await;
     });
-
     println!(
-        "{}🚀 Solana Meme Sniper started{} (Ctrl+C to stop)",
-        c_green, c_reset
+        "{green}🚀 Solana Meme Sniper started{reset}",
+        green = c_green,
+        reset = c_reset
+    );
+    println!(
+        "{dim}Press Ctrl+C to stop{reset}",
+        dim = c_dim,
+        reset = c_reset
     );
 
     tokio::select! {
         _ = async {
             loop {
-                // 1) Drain PumpPortal mints (fast path)
-                let mut pump_added = 0usize;
-                while let Ok(mint) = pump_rx.try_recv() {
-                    if !coins.contains_key(&mint) {
-                        coins.entry(mint.clone()).or_insert_with(CoinState::new);
-                        discovered.push_back(mint);
-                        pump_added += 1;
+                println!(
+                    "{cyan}🫀 tick{reset} | coins={} active={} calls={} discovered={}",
+                    coins.len(), active.len(), calls.len(), discovered.len(),
+                    cyan=c_cyan, reset=c_reset
+                );
 
-                        while discovered.len() > 200 {
-                            discovered.pop_front();
-                        }
-                    }
-                }
-
-                if pump_added > 0 {
-                    println!("{}🟣 pumpportal{} added={} coins={}", c_pink, c_reset, pump_added, coins.len());
-                }
-
-                // 2) Periodic Dexscreener discovery (slow path)
+                // Discovery
                 if discovery.should_run(&cfg) {
                     let new_mints = discovery.run(&cfg).await;
-                    let added = merge_discovered(&mut discovered, new_mints.clone(), 200);
+                    let added = merge_discovered(&mut discovered, new_mints.clone(), 30);
 
                     if added > 0 {
-                        println!("{}🕵️ discovery{} got={} added={} coins={}", c_cyan, c_reset, new_mints.len(), added, coins.len());
+                        println!(
+                            "{pink}🕵️ discovery{reset} | got={} added={} (cap={})",
+                            new_mints.len(), added, discovered.len(),
+                            pink=c_pink, reset=c_reset
+                        );
                         for mint in new_mints {
                             coins.entry(mint).or_insert_with(CoinState::new);
                         }
                     } else {
-                        println!("{}…no new mints this cycle{}", c_dim, c_reset);
+                        println!("{dim}…no new mints this cycle{reset}", dim=c_dim, reset=c_reset);
                     }
                 }
 
-                println!(
-                    "{}🫀 tick{} coins={} active={} calls={} discovered={}",
-                    c_yellow, c_reset,
-                    coins.len(),
-                    active.len(),
-                    calls.len(),
-                    discovered.len()
-                );
-
-                // 3) Market polling
+                // Market polling
                 let mint_list: Vec<String> = coins.keys().cloned().collect();
                 market.poll(&cfg, &mint_list).await;
 
-                // 4) Onchain events
+                // Onchain events (Helius REST)
                 helius::client::fetch_onchain_events(&cfg, &mut coins).await;
 
-                // 5) Score & manage
+                // Score & manage
                 score_and_manage(
                     &cfg,
                     &mut coins,
@@ -128,6 +116,7 @@ async fn main() {
                     &mut shadow,
                 );
 
+                // Resolve calls (placeholder)
                 resolver::resolve_calls(&cfg, &coins, &mut calls);
 
                 tokio::time::sleep(Duration::from_secs(cfg.main_loop_sleep)).await;
@@ -135,7 +124,7 @@ async fn main() {
         } => {}
 
         _ = signal::ctrl_c() => {
-            println!("\n{}🛑 Ctrl+C — saving & exiting...{}", c_red, c_reset);
+            println!("\n{yellow}🛑 Ctrl+C — saving & exiting…{reset}", yellow=c_yellow, reset=c_reset);
             let _ = save_reputation();
         }
     }

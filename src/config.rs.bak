@@ -49,19 +49,8 @@ pub struct Config {
 
 pub fn load_config() -> Config {
     dotenvy::dotenv().ok();
-    eprintln!("DBG cfg DISCOVERY_MAX_AGE_SECS={} DISCOVERY_MIN_FDV_USD={} DISCOVERY_MIN_LIQ_USD={} DISCOVERY_MIN_TX_5M={}",
-        env_u64("DISCOVERY_MAX_AGE_SECS", 86400),
-        env_f64("DISCOVERY_MIN_FDV_USD", 5000.0),
-        env_f64("DISCOVERY_MIN_LIQ_USD", 5000.0),
-        env_u64("DISCOVERY_MIN_TX_5M", 3)
-    );
 
     Config {
-        pumpportal_enabled: env_bool("PUMPPORTAL_ENABLED", true),
-        pumpportal_wss: env_str("PUMPPORTAL_WSS", "wss://pumpportal.fun/api/data"),
-        pumpportal_api_key: env_str("PUMPPORTAL_API_KEY", ""),
-        pumpportal_channel: env_str("PUMPPORTAL_CHANNEL", "subscribeNewToken"),
-
         // Core
         main_loop_sleep: env_u64("MAIN_LOOP_SLEEP", 5),
 

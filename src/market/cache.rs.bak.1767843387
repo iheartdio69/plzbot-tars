@@ -40,8 +40,6 @@ struct DexTokenResp {
 struct DexPair {
     price_usd: Option<String>,
     fdv: Option<f64>,
-    #[serde(rename = "marketCap")]
-    market_cap: Option<f64>,
     liquidity: Option<DexLiquidity>,
     txns: Option<DexTxns>,
 }
@@ -67,7 +65,7 @@ struct DexTxnPeriod {
 
 impl MarketCache {
     pub async fn poll(&mut self, _cfg: &Config, mints: &[String]) {
-        let max_per_cycle = 150usize;
+        let max_per_cycle = 25usize;
         let now_ts = crate::time::now();
 
         for mint in mints.iter().take(max_per_cycle) {
@@ -88,16 +86,7 @@ async fn fetch_dex_sample(mint: &str, ts: u64) -> Result<MarketSample, ()> {
     }
 
     let body = res.json::<DexTokenResp>().await.map_err(|_| ())?;
-    let mut pairs = body.pairs.ok_or(())?;
-
-    // pick the pair with the highest liquidity.usd (avoids liq=None)
-    pairs.sort_by(|a, b| {
-        let la = a.liquidity.as_ref().and_then(|l| l.usd).unwrap_or(0.0);
-        let lb = b.liquidity.as_ref().and_then(|l| l.usd).unwrap_or(0.0);
-        lb.partial_cmp(&la).unwrap_or(std::cmp::Ordering::Equal)
-    });
-
-    let pair = pairs.into_iter().next().ok_or(())?;
+    let pair = body.pairs.and_then(|mut p| p.pop()).ok_or(())?;
 
     let price = pair.price_usd.and_then(|s| s.parse::<f64>().ok());
     let fdv = pair.fdv;

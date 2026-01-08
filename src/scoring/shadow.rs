@@ -1,10 +1,11 @@
-// scoring/shadow.rs (stub)
-type ShadowMap = std::collections::HashMap<String, i32>;
+use std::collections::HashMap;
 
-pub fn shadow_should_add(score: i32, cfg: &Config, price_accel: f64, fdv_accel: f64) -> bool {
-    score >= cfg.score_target * 8 / 10 || price_accel > 0.0 || fdv_accel > 0.0
+pub type ShadowMap = HashMap<String, u64>; // mint -> until_ts
+
+pub fn is_shadowed(shadow: &ShadowMap, mint: &str, now: u64) -> bool {
+    shadow.get(mint).copied().unwrap_or(0) > now
 }
 
-pub fn shadow_touch(shadow: &mut ShadowMap, mint: &str, cfg: &Config, score: i32) {
-    shadow.insert(mint.to_string(), score); // Stub, add logic if needed
+pub fn shadow_for(shadow: &mut ShadowMap, mint: &str, now: u64, secs: u64) {
+    shadow.insert(mint.to_string(), now + secs);
 }

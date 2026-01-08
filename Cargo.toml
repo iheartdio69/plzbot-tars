@@ -2,13 +2,31 @@
 name = "solana_meme"
 version = "0.1.0"
 edition = "2021"
+description = "Solana meme coin sniper with wallet reputation learning"
+authors = ["murdersnake <you@example.com>"]
+license = "MIT"
+repository = "https://github.com/iheartdio69/scaling-octo-fortnight"
+keywords = ["solana", "meme", "sniper", "trading", "bot"]
+categories = ["cryptography::cryptocurrencies", "command-line-utilities"]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-tokio = { version = "1", features = ["full"] }
-reqwest = { version = "0.11", features = ["json", "rustls-tls"] }
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-colored = "2"
+rustls = { version = "0.23", default-features = false, features = ["ring"] }
+tokio = { version = "1.0", features = ["full", "signal"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+colored = "2.0"
+lazy_static = "1.4"
+reqwest = { version = "0.11", features = ["json"] }
+urlencoding = "2.1.3"
 dotenvy = "0.15"
-urlencoding = "2"
-env_logger = "0.11"
+solana-sdk = "3.0.0"
+bs58 = "0.5.1"
+tokio-tungstenite = { version = "0.28.0", features = ["rustls-tls-webpki-roots"] }
+futures-util = "0.3.31"
+# Optional: add these if you use Helius SDK later
+# helius = "1.2"
+
+[dev-dependencies]
+# Add test deps here later if needed

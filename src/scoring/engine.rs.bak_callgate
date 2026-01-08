@@ -24,10 +24,6 @@ pub fn score_and_manage(
         };
 
         let fdv = ms.fdv.unwrap_or(0.0);
-        println!(
-            "DBG callgate mint={} fdv={:?} liq={:?} tx_5m={:?}",
-            mint, ms.fdv, ms.liq, ms.tx_5m
-        );
         let liq = ms.liq.unwrap_or(0.0);
         let tx_5m = ms.tx_5m.unwrap_or(0) as usize;
 

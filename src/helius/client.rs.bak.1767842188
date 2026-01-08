@@ -5,8 +5,8 @@ use reqwest::Client;
 use serde_json::Value;
 use std::collections::HashMap;
 
-/// Fetch recent transactions for tracked mints using Helius REST API
-/// GET {base}/v0/addresses/{address}/transactions?api-key=KEY&limit=...
+/// Fetch recent transactions for tracked mints using Helius REST API (FREE)
+/// GET https://api.helius.xyz/v0/addresses/{address}/transactions?api-key=KEY&limit=...
 pub async fn fetch_onchain_events(cfg: &Config, coins: &mut HashMap<String, CoinState>) {
     // If no key, don't spam requests
     if cfg.helius_api_key.trim().is_empty() {
@@ -20,16 +20,16 @@ pub async fn fetch_onchain_events(cfg: &Config, coins: &mut HashMap<String, Coin
     let mints: Vec<String> = coins.keys().cloned().collect();
 
     for mint in mints {
+        // Only call for things that look like a real base58 pubkey (optional hard gate)
+        // If you don't want this gate, remove this block.
         let url = format!(
             "{}/v0/addresses/{}/transactions?api-key={}&limit={}",
             base,
             mint,
             cfg.helius_api_key.trim(),
-            cfg.fetch_limit
+            cfg.fetch_limit,
         );
-
-        // (optional) debug
-        // eprintln!("DBG helius url={}", url);
+        eprintln!("DBG helius url={}", url);
 
         let resp = match client.get(&url).send().await {
             Ok(r) => r,
@@ -37,6 +37,7 @@ pub async fn fetch_onchain_events(cfg: &Config, coins: &mut HashMap<String, Coin
         };
 
         if !resp.status().is_success() {
+            // ignore noisy failures (invalid addr / rate limit / etc.)
             continue;
         }
 
@@ -44,17 +45,21 @@ pub async fn fetch_onchain_events(cfg: &Config, coins: &mut HashMap<String, Coin
             Ok(j) => j,
             Err(_) => continue,
         };
+        eprintln!("DBG helius mint={} txs_len={}", mint, txs.len());
+        if let Some(first) = txs.get(0) {
+            if let Some(obj) = first.as_object() {
+                let keys: Vec<&String> = obj.keys().collect();
+                eprintln!("DBG helius first_keys={:?}", keys);
+            }
+        }
 
-        // (optional) debug
-        // eprintln!("DBG helius mint={} txs_len={}", mint, txs.len());
-
-        let Some(state) = coins.get_mut(&mint) else {
+        let Some(state) = coins.get_mut(mint.as_str()) else {
             continue;
         };
 
-        let empty_vec: Vec<Value> = vec![];
+        let empty_vec = vec![];
 
-        for tx in txs.iter() {
+        for tx in &txs {
             // Helius enhanced tx shape:
             // - timestamp (seconds)
             // - feePayer
@@ -69,13 +74,11 @@ pub async fn fetch_onchain_events(cfg: &Config, coins: &mut HashMap<String, Coin
             for nt in native {
                 let from = nt["fromUserAccount"].as_str().unwrap_or("");
                 if from == fee_payer {
-                    lamports_out = lamports_out.saturating_add(nt["amount"].as_u64().unwrap_or(0));
+                    lamports_out += nt["amount"].as_u64().unwrap_or(0);
                 }
             }
 
             let sol_amount = lamports_out as f64 / 1_000_000_000.0;
-
-            // ignore dust
             if sol_amount < 0.01 {
                 continue;
             }
@@ -89,8 +92,9 @@ pub async fn fetch_onchain_events(cfg: &Config, coins: &mut HashMap<String, Coin
             };
 
             state.events.push(Event {
+state.events.push(Event {
                 wallet: fee_payer,
-                ts,
+                ts: block_time,
                 sol: sol_amount,
                 tier,
             });
