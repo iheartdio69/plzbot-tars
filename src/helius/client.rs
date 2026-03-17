@@ -16,6 +16,7 @@ pub async fn fetch_address_txs(
     coins: &mut HashMap<String, CoinState>,
     tracked: &[String],
     gov: Arc<Governor>,
+    shutdown: &tokio_util::sync::CancellationToken,
 ) -> Vec<String> {
     if cfg.helius_api_key.trim().is_empty() {
         return vec![];
@@ -29,6 +30,9 @@ pub async fn fetch_address_txs(
     let mut discovered: HashSet<String> = HashSet::new();
 
     for addr in tracked {
+        if shutdown.is_cancelled() {
+            return discovered.into_iter().collect();
+        }
         let url = format!(
             "{}/v0/addresses/{}/transactions?api-key={}&limit={}",
             base, addr, cfg.helius_api_key, limit

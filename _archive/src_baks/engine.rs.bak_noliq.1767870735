@@ -1,0 +1,190 @@
+use crate::config::Config;
+use crate::market::cache::MarketCache;
+use crate::scoring::shadow;
+use crate::types::{CallRecord, CoinState, WhaleTier};
+use std::collections::{HashMap, VecDeque};
+
+pub fn score_and_manage(
+    cfg: &Config,
+    coins: &mut HashMap<String, CoinState>,
+    active: &mut Vec<String>,
+    queue: &mut VecDeque<String>,
+    calls: &mut Vec<CallRecord>,
+    market: &MarketCache,
+    shadow_map: &mut shadow::ShadowMap,
+) {
+    let now = crate::time::now();
+
+    // 1) score each coin
+    for (mint, st) in coins.iter_mut() {
+        // market gate
+        let Some(ms) = market.map.get(mint) else {
+            st.score = 0;
+            continue;
+        };
+
+        let fdv = ms.fdv.unwrap_or(0.0);
+        println!(
+            "DBG callgate mint={} fdv={:?} liq={:?} tx_5m={:?}",
+            mint, ms.fdv, ms.liq, ms.tx_5m
+        );
+        let liq = ms.liq.unwrap_or(0.0);
+        let tx_5m = ms.tx_5m.unwrap_or(0) as usize;
+
+        st.tx_5m = tx_5m;
+
+        // unique signers from events in last 5m
+        let cutoff = now.saturating_sub(300);
+        let mut signers = std::collections::HashSet::new();
+
+        // keep last 20m of events to cap growth
+        st.events.retain(|e| e.ts >= now.saturating_sub(1200));
+        for e in st.events.iter().filter(|e| e.ts >= cutoff) {
+            signers.insert(e.wallet.clone());
+        }
+        st.unique_signers_5m = signers.len();
+
+        // baseline score
+        let mut score: i32 = 0;
+
+        // market bands
+        if fdv >= cfg.min_watch_fdv_usd && fdv <= cfg.max_watch_fdv_usd {
+            score += 15;
+        }
+        if liq >= cfg.min_liq_usd {
+            score += 15;
+        }
+
+        // activity
+        if st.tx_5m >= 5 {
+            score += 15;
+        }
+        if st.events.is_empty() {
+            // no onchain feed yet; don't penalize
+        } else if st.unique_signers_5m >= cfg.min_signers_for_target {
+            score += 20;
+        } else {
+            score -= 10;
+        }
+
+        // whales (last 5m)
+        let whale_cutoff = now.saturating_sub(300);
+        let mut beluga: i32 = 0;
+        let mut blue: i32 = 0;
+        for e in st.events.iter().filter(|e| e.ts >= whale_cutoff) {
+            match e.tier {
+                WhaleTier::Beluga => beluga += 1,
+                WhaleTier::Blue => blue += 1,
+                _ => {}
+            }
+        }
+        score += beluga * 5;
+        score += blue * 10;
+
+        // shadow penalty
+        if shadow::is_shadowed(shadow_map, mint, now) {
+            score -= 50;
+        }
+
+        st.score = score;
+
+        // low-score streak for demotion
+        if st.score < cfg.score_demote {
+            st.low_score_streak = st.low_score_streak.saturating_add(1);
+        } else {
+            st.low_score_streak = 0;
+        }
+
+        // optional debug (safe, doesn't touch braces)
+        println!(
+            "DBG score mint={} score={} tx_5m={} signers_5m={} events={} first_seen={}",
+            mint,
+            st.score,
+            st.tx_5m,
+            st.unique_signers_5m,
+            st.events.len(),
+            st.first_seen
+        );
+    }
+
+    // 2) recompute active list: drop demoted
+    active.retain(|mint| {
+        if let Some(st) = coins.get(mint) {
+            if u32::from(st.low_score_streak) >= cfg.demote_streak {
+                shadow::shadow_for(shadow_map, mint, now, 120);
+                false
+            } else {
+                true
+            }
+        } else {
+            false
+        }
+    });
+
+    // 3) fill queue with candidates
+    for (mint, st) in coins.iter() {
+        if st.score >= 25
+            && !active.contains(mint)
+            && !queue.contains(mint)
+            && !shadow::is_shadowed(shadow_map, mint, now)
+        {
+            queue.push_back(mint.clone());
+        }
+    }
+
+    // 4) promote from queue into active
+    while active.len() < cfg.max_active_coins {
+        let Some(mint) = queue.pop_front() else {
+            break;
+        };
+        if active.contains(&mint) {
+            continue;
+        }
+
+        active.push(mint.clone());
+        if let Some(st) = coins.get_mut(&mint) {
+            st.active = true;
+        }
+
+        println!(
+            "✅ ACTIVE: {} (score={})",
+            mint,
+            coins.get(&mint).map(|s| s.score).unwrap_or(0)
+        );
+    }
+
+    // 5) create calls from active coins that pass call fdv band
+    for mint in active.iter() {
+        let Some(ms) = market.map.get(mint) else {
+            continue;
+        };
+        let fdv = ms.fdv.unwrap_or(0.0);
+
+        if fdv >= cfg.min_call_fdv_usd && fdv <= cfg.max_call_fdv_usd {
+            if calls.iter().any(|c| c.mint == *mint) {
+                continue;
+            }
+
+            let sc = coins.get(mint).map(|s| s.score).unwrap_or(0);
+            calls.push(CallRecord {
+                mint: mint.clone(),
+                ts: now,
+                score: sc,
+            });
+
+            println!(
+                "{}",
+                crate::fmt::pink(&format!("📣 CALL: {} fdv=${:.0} score={}", mint, fdv, sc))
+            );
+        }
+    }
+
+    // debug counts
+    println!(
+        "DBG scanned={} called={} active={} queue={}",
+        coins.len(),
+        calls.len(),
+        active.len(),
+        queue.len()
+    );
+}

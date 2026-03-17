@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS mint_snapshots (
   is_active     INTEGER DEFAULT 0,
   is_call       INTEGER DEFAULT 0
 );
-CREATE INDEX IF NOT EXISTS idx_mint_snapshots_mint_ts ON mint_snapshots(mint, ts);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_mint_snapshots_mint_ts ON mint_snapshots(mint, ts);
 CREATE INDEX IF NOT EXISTS idx_mint_snapshots_ts ON mint_snapshots(ts);
 
 CREATE TABLE IF NOT EXISTS calls (

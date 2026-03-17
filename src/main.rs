@@ -136,7 +136,6 @@ async fn main() {
 
             // Ctrl+C watcher cancels `shutdown`
             _ = shutdown.cancelled() => {
-                crate::banner::goodbye();
                 break 'main;
             }
 
@@ -232,7 +231,7 @@ async fn main() {
                     let wallets = build_wallet_learning_list(&cfg, &mut db, 25);
                     if !wallets.is_empty() {
                         if let Err(e) = crate::helius::ingest::ingest_wallet_activity(
-                            &cfg, &mut db, &mut coins, &wallets, gov.clone()
+                            &cfg, &mut db, &mut coins, &wallets, gov.clone(), &shutdown
                         ).await {
                             if !shutdown.is_cancelled() {
                                 eprintln!("{}DBG wallet-learning ingest ERR={:?}{}", fmt::RED, e, fmt::RESET);
@@ -252,7 +251,7 @@ async fn main() {
                     let tracked = build_tracked_pair_addresses(&coins, &active, &queue, 150);
                     if !tracked.is_empty() {
                         let discovered_mints = crate::scoring::onchain::fetch_onchain_events(
-                            &cfg, &mut db, &mut coins, &tracked, gov.clone()
+                            &cfg, &mut db, &mut coins, &tracked, gov.clone(), &shutdown
                         ).await;
 
                         if shutdown.is_cancelled() {
@@ -353,6 +352,7 @@ async fn main() {
             }
         }
     }
+    crate::banner::goodbye();
 }
 
 // ============================================================
@@ -580,9 +580,9 @@ fn maybe_promote_watchlist(db: &mut crate::db::Db, now_ts: i64, last_ts: &mut i6
         return;
     }
 
-    let promote_n = 25;
+    let promote_n = 5;
     let min_score = 50;
-    let max_watchlist = 50;
+    let max_watchlist = 10;
 
     match db.promote_watchlist_from_scored_wallets(now_ts, promote_n, min_score, max_watchlist) {
         Ok((added, pruned)) => {

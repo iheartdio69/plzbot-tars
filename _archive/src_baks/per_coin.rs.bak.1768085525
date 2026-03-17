@@ -1,0 +1,233 @@
+use crate::config::Config;
+use crate::types::{CoinState, Event, WhaleTier};
+use anyhow::Result;
+use reqwest::Client;
+use serde::Deserialize;
+use std::collections::{HashMap, HashSet};
+
+#[derive(Debug, Clone, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct HeliusTx {
+    pub signature: Option<String>,
+    pub timestamp: Option<u64>,
+    pub fee_payer: Option<String>,
+
+    #[serde(default)]
+    pub native_transfers: Vec<NativeTransfer>,
+    #[serde(default)]
+    pub token_transfers: Vec<TokenTransfer>,
+
+    #[serde(default)]
+    pub transaction_error: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct NativeTransfer {
+    pub from_user_account: Option<String>,
+    pub to_user_account: Option<String>,
+    pub amount: u64, // lamports
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct TokenTransfer {
+    pub mint: String,
+    pub from_user_account: Option<String>,
+    pub to_user_account: Option<String>,
+    pub token_amount: Option<f64>,
+}
+
+fn lamports_to_sol(l: u64) -> f64 {
+    (l as f64) / 1_000_000_000.0
+}
+
+// Blue > Beluga (tx size tiers)
+fn classify_tier(sol: f64, cfg: &Config) -> WhaleTier {
+    if sol >= cfg.blue_sol_tx {
+        WhaleTier::Blue
+    } else if sol >= cfg.beluga_sol_tx {
+        WhaleTier::Beluga
+    } else {
+        WhaleTier::None
+    }
+}
+
+fn estimate_sol_mag(native: &[NativeTransfer], actor: &str) -> f64 {
+    // magnitude of SOL moved by actor in this tx (in or out)
+    let mut out: u64 = 0;
+    let mut inn: u64 = 0;
+    for nt in native {
+        if nt.from_user_account.as_deref().unwrap_or("") == actor {
+            out = out.saturating_add(nt.amount);
+        }
+        if nt.to_user_account.as_deref().unwrap_or("") == actor {
+            inn = inn.saturating_add(nt.amount);
+        }
+    }
+    lamports_to_sol(out).abs().max(lamports_to_sol(inn).abs())
+}
+
+#[inline]
+fn is_ignored_mint(m: &str) -> bool {
+    matches!(
+        m,
+        "So11111111111111111111111111111111111111112" | // wSOL
+        "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" | // USDC
+        "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB"   // USDT
+    )
+}
+
+fn tx_signers(tx: &HeliusTx, default_fee_payer: &str) -> HashSet<String> {
+    let mut signers: HashSet<String> = HashSet::new();
+
+    let fee = tx
+        .fee_payer
+        .clone()
+        .unwrap_or_else(|| default_fee_payer.to_string());
+    if !fee.is_empty() {
+        signers.insert(fee);
+    }
+
+    for nt in &tx.native_transfers {
+        if let Some(f) = &nt.from_user_account {
+            if !f.is_empty() {
+                signers.insert(f.clone());
+            }
+        }
+        if let Some(t) = &nt.to_user_account {
+            if !t.is_empty() {
+                signers.insert(t.clone());
+            }
+        }
+    }
+    for tt in &tx.token_transfers {
+        if let Some(f) = &tt.from_user_account {
+            if !f.is_empty() {
+                signers.insert(f.clone());
+            }
+        }
+        if let Some(t) = &tt.to_user_account {
+            if !t.is_empty() {
+                signers.insert(t.clone());
+            }
+        }
+    }
+
+    signers
+}
+
+/// Per-coin ingest:
+/// For each active coin that has a `pair_address`, pull txs for that pair address,
+/// and attach events ONLY to that mint. This is what makes signers_5m non-zero on meme coins.
+pub async fn ingest_pairs_for_active(
+    cfg: &Config,
+    db: &mut crate::db::Db,
+    coins: &mut HashMap<String, CoinState>,
+    active: &[String],
+) -> Result<()> {
+    if cfg.helius_api_key.trim().is_empty() {
+        return Ok(());
+    }
+
+    let client = Client::new();
+    let base = cfg.helius_addr_url.trim_end_matches('/');
+
+    for mint in active {
+        let Some(st) = coins.get(mint) else { continue; };
+        let Some(pair) = st.pair_address.as_deref() else { continue; };
+        if pair.trim().is_empty() { continue; }
+
+        let url = format!(
+            "{}/v0/addresses/{}/transactions?api-key={}&limit={}",
+            base,
+            pair.trim(),
+            cfg.helius_api_key.trim(),
+            cfg.fetch_limit
+        );
+
+        let resp = match client.get(&url).send().await {
+            Ok(r) => r,
+            Err(_) => continue,
+        };
+
+        if !resp.status().is_success() {
+            // keep quiet unless you want spam
+            continue;
+        }
+
+        let txs: Vec<HeliusTx> = match resp.json().await {
+            Ok(j) => j,
+            Err(_) => continue,
+        };
+
+        if txs.is_empty() {
+            continue;
+        }
+
+        // We attach signers/events to THIS mint only
+        let st_mut = coins.get_mut(mint).unwrap();
+
+        for tx in txs {
+            if tx.transaction_error.is_some() {
+                continue;
+            }
+
+            let sig = match tx.signature.as_deref() {
+                Some(s) if !s.is_empty() => s,
+                _ => continue,
+            };
+            let ts = tx.timestamp.unwrap_or(0);
+            if ts == 0 {
+                continue;
+            }
+
+            // de-dupe at the DB level
+            if db.seen_sig(sig)? {
+                continue;
+            }
+            db.mark_sig(ts as i64, sig)?;
+
+            // Compute tier based on fee payer movement (fallback to pair as default)
+            let fee_payer = tx.fee_payer.clone().unwrap_or_else(|| pair.to_string());
+            let sol_mag = estimate_sol_mag(&tx.native_transfers, &fee_payer);
+            let tier = classify_tier(sol_mag, cfg);
+
+            let signers = tx_signers(&tx, &fee_payer);
+
+            // Attach events
+            for wallet in signers.iter() {
+                st_mut.events.push(Event {
+                    wallet: wallet.clone(),
+                    ts,
+                    sol: sol_mag,
+                    tier,
+                });
+            }
+
+            // Write edges wallet->mint (filtered mint)
+            if !is_ignored_mint(mint) {
+                for wallet in signers.iter() {
+                    let _ = db.insert_wallet_edge(
+                        ts as i64,
+                        wallet,
+                        None,
+                        Some(mint.as_str()),
+                        "pair_tx",
+                        Some(sol_mag),
+                        Some(sig),
+                    );
+                }
+            }
+        }
+
+        // keep memory bounded
+        let keep_since = crate::time::now().saturating_sub(1200);
+        st_mut.events.retain(|e| e.ts >= keep_since);
+        if st_mut.events.len() > 50_000 {
+            st_mut.events.drain(0..10_000);
+        }
+    }
+
+    Ok(())
+}

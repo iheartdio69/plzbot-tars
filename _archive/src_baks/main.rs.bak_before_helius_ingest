@@ -1,0 +1,177 @@
+mod config;
+mod db;
+mod fmt;
+mod helius;
+mod io;
+mod market;
+mod printing;
+mod pumpportal;
+mod resolver;
+mod scoring;
+mod time;
+mod types;
+
+use crate::config::load_config;
+use crate::io::{load_reputation, save_reputation};
+use crate::market::cache::MarketCache;
+use crate::market::discovery::{merge_discovered, MarketDiscovery};
+use crate::scoring::engine::score_and_manage;
+use crate::types::{CallRecord, CoinState};
+
+use std::collections::{HashMap, VecDeque};
+use std::time::Duration;
+use tokio::signal;
+use tokio::sync::mpsc;
+
+#[tokio::main]
+async fn main() {
+    let cfg = load_config();
+    let seed_wallets = cfg.helius_wallets.clone();
+        .await
+        .ok();
+    if let Err(e) = load_reputation() {
+        eprintln!(
+            "{}⚠️ Failed to load reputation files:{} {}",
+            fmt::ORANGE,
+            fmt::RESET,
+            e
+        );
+    }
+
+    // autosave
+    tokio::spawn(async {
+        let mut interval = tokio::time::interval(Duration::from_secs(300));
+        loop {
+            interval.tick().await;
+            let _ = save_reputation();
+        }
+    });
+
+    let mut coins: HashMap<String, CoinState> = HashMap::new();
+    let mut active: Vec<String> = Vec::new();
+    let mut queue: VecDeque<String> = VecDeque::new();
+    let mut calls: Vec<CallRecord> = Vec::new();
+
+    let mut market = MarketCache::default();
+    let mut discovered: VecDeque<String> = VecDeque::new();
+    let mut discovery = MarketDiscovery::default();
+    let mut shadow = scoring::shadow::ShadowMap::new();
+
+    let mut db = db::Db::open("data/solana_meme.sqlite").expect("open sqlite");
+
+    let mut db = crate::db::Db::open("solana_meme.sqlite").expect("db open failed");
+    // PumpPortal -> stream new token mints into the bot
+    let (pump_tx, mut pump_rx) = mpsc::channel::<String>(10_000);
+    let cfg_pp = cfg.clone();
+    tokio::spawn(async move {
+        pumpportal::client::run(cfg_pp, pump_tx).await;
+    });
+
+    println!(
+        "{}🚀 Solana Meme Sniper started{} (Ctrl+C to stop)",
+        fmt::NEON_GREEN,
+        fmt::RESET
+    );
+
+    tokio::select! {
+            _ = async {
+                loop {
+                    // 1) Drain PumpPortal mints (fast path)
+                    let mut pump_added = 0usize;
+                    while let Ok(mint) = pump_rx.try_recv() {
+                        if !coins.contains_key(&mint) {
+                            coins.entry(mint.clone()).or_insert_with(CoinState::new);
+                            discovered.push_back(mint);
+                            pump_added += 1;
+
+                            while discovered.len() > 20000 {
+                                discovered.pop_front();
+                            }
+                        }
+                    }
+
+                    if pump_added > 0 {
+                        println!("{}🟣 pumpportal{} added={} coins={}", fmt::NEON_PINK, fmt::RESET, pump_added, coins.len());
+                    }
+
+                    // 2) Periodic Dexscreener discovery (slow path)
+                    if discovery.should_run(&cfg) {
+                        let new_mints = discovery.run(&cfg).await;
+                        let added = merge_discovered(&mut discovered, new_mints.clone(), 2000);
+
+                        if added > 0 {
+                            println!("{}🕵️ discovery{} got={} added={} coins={}", fmt::LIGHT_BLUE, fmt::RESET, new_mints.len(), added, coins.len());
+                            for mint in new_mints {
+                                coins.entry(mint).or_insert_with(CoinState::new);
+                            }
+                        } else {
+                            println!("{}…no new mints this cycle{}", fmt::RESET, fmt::RESET);
+                        }
+                    }
+
+                    println!(
+                        "{}🫀 tick{} coins={} active={} calls={} discovered={}",
+                        fmt::ORANGE, fmt::RESET,
+                        coins.len(),
+                        active.len(),
+                        calls.len(),
+                        discovered.len()
+                    );
+
+                    // 3) Market polling
+                    let mint_list: Vec<String> = coins.keys().cloned().collect();
+                    market.poll(&cfg, &mint_list).await;
+
+                    // 4) Onchain events
+                    let helius_mints = helius::client::fetch_onchain_events(&cfg, &mut coins, &mut db).await;
+
+
+                    if !helius_mints.is_empty() {
+                    for m in &helius_mints {
+                        let m = m.clone();
+                            if !coins.contains_key(&m) {
+                                coins.entry(m.clone()).or_insert_with(CoinState::new);
+                                discovered.push_back(m);
+                                while discovered.len() > 200 {
+                                    discovered.pop_front();
+                                }
+                            }
+                        }
+                    }
+    if !helius_mints.is_empty() {
+                    for m in &helius_mints {
+                        let m = m.clone();
+                              if !coins.contains_key(&m) {
+                                  coins.entry(m.clone()).or_insert_with(CoinState::new);
+                                  discovered.push_back(m);
+                                  while discovered.len() > 200 {
+                                      discovered.pop_front();
+                                  }
+                              }
+                          }
+                      }
+
+                    // 5) Score & manage
+                    score_and_manage(
+                        &cfg,
+                        &mut coins,
+                        &mut active,
+                        &mut queue,
+                        &mut calls,
+                        &market,
+                        &mut shadow,
+                        &mut db,
+                    );
+
+                    resolver::resolve_calls(&cfg, &coins, &mut calls);
+
+                    tokio::time::sleep(Duration::from_secs(cfg.main_loop_sleep)).await;
+                }
+            } => {}
+
+            _ = signal::ctrl_c() => {
+                println!("\n{}🛑 Ctrl+C — saving & exiting...{}", fmt::ORANGE, fmt::RESET);
+                let _ = save_reputation();
+            }
+        }
+}

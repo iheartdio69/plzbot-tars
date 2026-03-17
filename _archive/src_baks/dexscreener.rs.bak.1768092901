@@ -1,0 +1,126 @@
+use reqwest::Client;
+use serde::Deserialize;
+
+//
+// ===== Public Types =====
+//
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DexPair {
+    pub chain_id: String,
+    pub pair_address: String,
+    pub base_token: DexToken,
+    pub price_usd: Option<String>,
+    pub fdv: Option<f64>,
+    pub liquidity: Option<DexLiquidity>,
+    pub txns: Option<DexTxns>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DexToken {
+    pub address: String,
+    pub symbol: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DexLiquidity {
+    pub usd: Option<f64>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DexTxns {
+    pub m5: Option<DexTxnPeriod>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DexTxnPeriod {
+    pub buys: Option<u64>,
+    pub sells: Option<u64>,
+}
+
+//
+// ===== Internal Response =====
+//
+
+#[derive(Debug, Deserialize)]
+struct DexSearchResponse {
+    pairs: Option<Vec<DexPair>>,
+}
+
+//
+// ===== API Calls =====
+//
+
+/// Raw Dexscreener search
+async fn search_pairs(q: &str) -> Result<Vec<DexPair>, String> {
+    let q_enc = urlencoding::encode(q);
+    let url = format!("https://api.dexscreener.com/latest/dex/search/?q={}", q_enc);
+
+    let client = Client::new();
+    let res = client
+        .get(&url)
+        .send()
+        .await
+        .map_err(|e| format!("dexscreener request failed: {e}"))?;
+
+    let body = res
+        .json::<DexSearchResponse>()
+        .await
+        .map_err(|e| format!("dexscreener json parse failed: {e}"))?;
+
+    Ok(body.pairs.unwrap_or_default())
+}
+
+//
+// ===== Public Helper =====
+//
+
+/// Fetch the *best* Dexscreener pair snapshot for a mint
+///
+/// Priority:
+/// 1) Solana + baseToken.address == mint
+/// 2) Any Solana pair
+/// 3) Highest liquidity
+pub async fn fetch_dexscreener_snap(mint: &str) -> Option<DexPair> {
+    let pairs = search_pairs(mint).await.ok()?;
+    if pairs.is_empty() {
+        return None;
+    }
+
+    // 1) Solana only
+    let mut solana: Vec<DexPair> = pairs
+        .into_iter()
+        .filter(|p| p.chain_id == "solana")
+        .collect();
+
+    if solana.is_empty() {
+        return None;
+    }
+
+    // 2) Exact base token match (real mint)
+    let mut exact: Vec<DexPair> = solana
+        .iter()
+        .cloned()
+        .filter(|p| p.base_token.address == mint)
+        .collect();
+
+    let candidates: &mut Vec<DexPair> = if !exact.is_empty() {
+        &mut exact
+    } else {
+        &mut solana
+    };
+
+    // 3) Highest liquidity wins
+    candidates.sort_by(|a, b| {
+        let la = a.liquidity.as_ref().and_then(|l| l.usd).unwrap_or(0.0);
+        let lb = b.liquidity.as_ref().and_then(|l| l.usd).unwrap_or(0.0);
+        lb.partial_cmp(&la).unwrap_or(std::cmp::Ordering::Equal)
+    });
+
+    candidates.into_iter().next()
+}

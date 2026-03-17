@@ -1,0 +1,288 @@
+use crate::config::Config;
+use crate::db::Db;
+use crate::types::{CoinState, Event, WhaleTier};
+use anyhow::Result;
+use reqwest::Client;
+use serde::Deserialize;
+use std::collections::{HashMap, HashSet};
+
+#[derive(Debug, Clone, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct HeliusTx {
+    pub signature: Option<String>,
+    pub timestamp: Option<u64>,
+    pub fee_payer: Option<String>,
+
+    #[serde(default)]
+    pub native_transfers: Vec<NativeTransfer>,
+    #[serde(default)]
+    pub token_transfers: Vec<TokenTransfer>,
+
+    #[serde(default)]
+    pub transaction_error: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct NativeTransfer {
+    pub from_user_account: Option<String>,
+    pub to_user_account: Option<String>,
+    pub amount: u64, // lamports
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct TokenTransfer {
+    pub mint: String,
+    pub from_user_account: Option<String>,
+    pub to_user_account: Option<String>,
+    pub token_amount: Option<f64>,
+}
+
+fn lamports_to_sol(l: u64) -> f64 {
+    (l as f64) / 1_000_000_000.0
+}
+
+// Blue > Beluga (Blue threshold higher than Beluga)
+fn classify_tier(sol: f64, cfg: &Config) -> WhaleTier {
+    if sol >= cfg.blue_sol_tx {
+        WhaleTier::Blue
+    } else if sol >= cfg.beluga_sol_tx {
+        WhaleTier::Beluga
+    } else {
+        WhaleTier::None
+    }
+}
+
+fn estimate_sol_out(native: &[NativeTransfer], actor: &str) -> f64 {
+    let mut lamports_out: u64 = 0;
+    for nt in native {
+        if nt.from_user_account.as_deref().unwrap_or("") == actor {
+            lamports_out = lamports_out.saturating_add(nt.amount);
+        }
+    }
+    lamports_to_sol(lamports_out)
+}
+
+fn estimate_sol_in(native: &[NativeTransfer], actor: &str) -> f64 {
+    let mut lamports_in: u64 = 0;
+    for nt in native {
+        if nt.to_user_account.as_deref().unwrap_or("") == actor {
+            lamports_in = lamports_in.saturating_add(nt.amount);
+        }
+    }
+    lamports_to_sol(lamports_in)
+}
+
+fn is_ignored_mint(m: &str) -> bool {
+    matches!(
+        m,
+        "So11111111111111111111111111111111111111112" | // wSOL
+        "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"   // USDC
+    )
+}
+
+fn collect_mints(token: &[TokenTransfer]) -> Vec<String> {
+    let mut set = HashSet::new();
+    for tt in token {
+        let m = tt.mint.trim();
+        if !m.is_empty() {
+            set.insert(m.to_string());
+        }
+    }
+    set.into_iter().collect()
+}
+
+
+
+/// Wallet-driven ingest:
+/// - calls Helius REST: /v0/addresses/<WALLET>/transactions
+/// - builds signer set from fee_payer + transfer participants
+/// - attaches events to each mint seen
+/// - writes wallet_edges rows (for later reputation)
+pub async fn ingest_wallet_activity(
+    cfg: &Config,
+    db: &mut Db,
+    coins: &mut HashMap<String, CoinState>,
+    wallets: &[String],
+) -> Result<()> {
+    if cfg.helius_api_key.trim().is_empty() {
+        eprintln!("DBG helius ingest: HELIUS_API_KEY empty -> skipping");
+        return Ok(());
+    }
+
+    let client = Client::new();
+
+    // You can set HELIUS_ADDR_URL to either:
+    // - https://api.helius.xyz
+    // - https://api.helius.xyz/v0/addresses
+    // We normalize both to the "addresses base".
+    let raw = cfg.helius_addr_url.trim().trim_end_matches('/');
+    let base = if raw.ends_with("/v0/addresses") {
+        raw.to_string()
+    } else {
+        format!("{}/v0/addresses", raw)
+    };
+
+    eprintln!(
+        "DBG helius ingest: base={} api_key_len={} wallets={}",
+        base,
+        cfg.helius_api_key.trim().len(),
+        wallets.len()
+    );
+
+    for w in wallets {
+        let w = w.trim();
+        if w.is_empty() {
+            continue;
+        }
+
+        let url = format!(
+            "{}/{}/transactions?api-key={}&limit={}",
+            base,
+            w,
+            cfg.helius_api_key.trim(),
+            cfg.fetch_limit
+        );
+
+        eprintln!("DBG helius ingest url={}", url);
+
+        let resp = match client.get(&url).send().await {
+            Ok(r) => r,
+            Err(e) => {
+                eprintln!("DBG helius ingest: request error wallet={} err={}", w, e);
+                continue;
+            }
+        };
+
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let body = resp.text().await.unwrap_or_default();
+            eprintln!(
+                "DBG helius ingest: non-200 wallet={} status={} body_snip={}",
+                w,
+                status,
+                body.chars().take(200).collect::<String>()
+            );
+            continue;
+        }
+
+        let txs: Vec<HeliusTx> = match resp.json().await {
+            Ok(j) => j,
+            Err(e) => {
+                eprintln!("DBG helius ingest: json parse error wallet={} err={}", w, e);
+                continue;
+            }
+        };
+
+        if txs.is_empty() {
+            eprintln!("DBG helius ingest: wallet={} got 0 txs", w);
+        }
+
+        for tx in txs {
+            // Optional: skip failed txs
+            if tx.transaction_error.is_some() {
+                continue;
+            }
+
+            let sig = match tx.signature.as_deref() {
+                Some(s) if !s.is_empty() => s,
+                _ => continue,
+            };
+
+            let ts = tx.timestamp.unwrap_or(0);
+            if ts == 0 {
+                continue;
+            }
+
+            // dedupe forever
+            if db.seen_sig(sig)? {
+                continue;
+            }
+            db.mark_sig(ts as i64, sig)?;
+
+            let fee_payer = tx.fee_payer.clone().unwrap_or_else(|| w.to_string());
+            let sol_out = estimate_sol_out(&tx.native_transfers, &fee_payer);
+            let sol_in = estimate_sol_in(&tx.native_transfers, &fee_payer);
+            let sol_mag = sol_out.abs().max(sol_in.abs());
+
+            // Build signer/actor set from transfers
+            let mut signers: HashSet<String> = HashSet::new();
+            signers.insert(fee_payer.clone());
+
+            for nt in &tx.native_transfers {
+                if let Some(f) = &nt.from_user_account {
+                    if !f.is_empty() {
+                        signers.insert(f.clone());
+                    }
+                }
+                if let Some(t) = &nt.to_user_account {
+                    if !t.is_empty() {
+                        signers.insert(t.clone());
+                    }
+                }
+            }
+
+            for tt in &tx.token_transfers {
+                if let Some(f) = &tt.from_user_account {
+                    if !f.is_empty() {
+                        signers.insert(f.clone());
+                    }
+                }
+                if let Some(t) = &tt.to_user_account {
+                    if !t.is_empty() {
+                        signers.insert(t.clone());
+                    }
+                }
+            }
+
+            // Ignore pure-dust (optional)
+            if sol_mag < 0.01 && signers.len() <= 1 {
+                continue;
+            }
+
+            let tier = classify_tier(sol_mag, cfg);
+            let mints = collect_mints(&tx.token_transfers);
+
+            // if no token transfers, no mint mapping
+            if mints.is_empty() {
+                continue;
+            }
+
+            for mint in mints {
+                coins.entry(mint.clone()).or_insert_with(CoinState::new);
+
+                if let Some(st) = coins.get_mut(&mint) {
+                    for wallet in signers.iter() {
+                        st.events.push(Event {
+                            wallet: wallet.clone(),
+                            ts,
+                            sol: sol_mag,
+                            tier,
+                        });
+                    }
+
+                    // keep memory bounded
+                    if st.events.len() > 50_000 {
+                        st.events.drain(0..10_000);
+                    }
+                }
+
+                // write signer->mint edges
+                for wallet in signers.iter() {
+                    let _ = db.insert_wallet_edge(
+                        ts as i64,
+                        wallet,
+                        None,
+                        Some(mint.as_str()),
+                        "helius_tx",
+                        Some(sol_mag),
+                        Some(sig),
+                    );
+                }
+            }
+        }
+    }
+
+    Ok(())
+}

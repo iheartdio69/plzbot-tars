@@ -16,6 +16,7 @@ pub async fn fetch_onchain_events(
     coins: &mut HashMap<String, CoinState>,
     tracked_pairs: &[String],
     gov: Arc<Governor>,
+    shutdown: &tokio_util::sync::CancellationToken,
 ) -> Vec<String> {
     if tracked_pairs.is_empty() {
         return Vec::new();
@@ -23,7 +24,7 @@ pub async fn fetch_onchain_events(
 
     // 1) Ingest (this is where events/edges get written)
     let discovered_mints =
-        crate::helius::client::fetch_address_txs(cfg, db, coins, tracked_pairs, gov).await;
+        crate::helius::client::fetch_address_txs(cfg, db, coins, tracked_pairs, gov, shutdown).await;
 
     // 2) Refresh per-mint "last activity" for actives/rotator logic
     // IMPORTANT: last_activity_ts should mean "real onchain activity", not "we polled".
@@ -39,6 +40,9 @@ pub async fn fetch_onchain_events(
     // the discovered mints (most important). If you want perfect updates for *all*
     // tracked mints, see the note below.
     for mint in discovered_mints.iter() {
+        if shutdown.is_cancelled() {
+            return Vec::new();
+        }
         // Prefer sig/event-based heartbeat if you have it; otherwise snapshot heartbeat.
         let mut last_seen: i64 = db
             .mint_last_seen_ts(mint.as_str())

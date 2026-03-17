@@ -155,6 +155,7 @@ pub async fn ingest_wallet_activity(
     coins: &mut HashMap<String, CoinState>,
     wallets: &[String],
     gov: Arc<Governor>,
+    shutdown: &tokio_util::sync::CancellationToken,
 ) -> Result<(), anyhow::Error> {
     if cfg.helius_api_key.trim().is_empty() {
         eprintln!("DBG helius ingest: HELIUS_API_KEY empty -> skipping");
@@ -179,6 +180,9 @@ pub async fn ingest_wallet_activity(
     );
 
     for w in wallets {
+        if shutdown.is_cancelled() {
+            return Ok(());
+        }
         let w = w.trim();
         if w.is_empty() {
             continue;
@@ -192,7 +196,6 @@ pub async fn ingest_wallet_activity(
             cfg.fetch_limit
         );
 
-        gov.acquire_enhanced().await;
 
         // v0/addresses/.../transactions is "Enhanced Transactions" credits
         let permit = gov.acquire_enhanced().await;

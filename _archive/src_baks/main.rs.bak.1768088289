@@ -1,0 +1,205 @@
+mod config;
+mod db;
+mod fmt;
+mod helius;
+mod io;
+mod market;
+mod printing;
+mod pumpportal;
+mod resolver;
+mod scoring;
+mod time;
+mod types;
+
+use crate::config::load_config;
+use crate::io::{load_reputation, save_reputation};
+use crate::market::cache::MarketCache;
+use crate::market::discovery::{merge_discovered, MarketDiscovery};
+use crate::scoring::engine::score_and_manage;
+use crate::types::{CallRecord, CoinState};
+
+use std::collections::{HashMap, VecDeque};
+use std::time::Duration;
+use tokio::signal;
+use tokio::sync::mpsc;
+
+#[tokio::main]
+async fn main() {
+    let cfg = load_config();
+    if let Err(e) = load_reputation() {
+        eprintln!(
+            "{}⚠️ Failed to load reputation files:{} {}",
+            fmt::ORANGE,
+            fmt::RESET,
+            e
+        );
+    }
+
+    // autosave (every 300s)
+    tokio::spawn(async move {
+        loop {
+            tokio::time::sleep(Duration::from_secs(300)).await;
+            let _ = save_reputation();
+        }
+    });
+
+    let mut coins: HashMap<String, CoinState> = HashMap::new();
+    let mut active: Vec<String> = Vec::new();
+    let mut queue: VecDeque<String> = VecDeque::new();
+    let mut calls: Vec<CallRecord> = Vec::new();
+
+    let mut market = MarketCache::default();
+    let mut discovered: VecDeque<String> = VecDeque::new();
+    let mut discovery = MarketDiscovery::default();
+    let mut shadow = scoring::shadow::ShadowMap::new();
+
+
+    let mut db = crate::db::Db::open(&cfg.sqlite_path).expect("db open failed");    // PumpPortal -> stream new token mints into the bot
+    let (pump_tx, mut pump_rx) = mpsc::channel::<String>(10_000);
+    let cfg_pp = cfg.clone();
+    tokio::spawn(async move {
+        pumpportal::client::run(cfg_pp, pump_tx).await;
+    });
+
+    println!(
+        "{}🚀 Solana Meme Sniper started{} (Ctrl+C to stop)",
+        fmt::NEON_GREEN,
+        fmt::RESET
+    );
+
+    tokio::select! {
+        _ = async {
+            loop {
+                // 1) Drain PumpPortal mints (fast path)
+                let mut pump_added = 0usize;
+                while let Ok(mint) = pump_rx.try_recv() {
+                    if !coins.contains_key(&mint) {
+                        coins.entry(mint.clone()).or_insert_with(CoinState::new);
+                        discovered.push_back(mint);
+                        pump_added += 1;
+
+                        while discovered.len() > 20000 {
+                            discovered.pop_front();
+                        }
+                    }
+                }
+
+                if pump_added > 0 {
+                    println!("{}🟣 pumpportal{} added={} coins={}", fmt::NEON_PINK, fmt::RESET, pump_added, coins.len());
+                }
+
+                // 2) Periodic Dexscreener discovery (slow path)
+                if discovery.should_run(&cfg) {
+                    let new_mints = discovery.run(&cfg).await;
+                    let added = merge_discovered(&mut discovered, new_mints.clone(), 2000);
+
+                    if added > 0 {
+                        println!("{}🕵️ discovery{} got={} added={} coins={}", fmt::LIGHT_BLUE, fmt::RESET, new_mints.len(), added, coins.len());
+                        for mint in new_mints {
+                            coins.entry(mint).or_insert_with(CoinState::new);
+                        }
+                    } else {
+                        println!("{}…no new mints this cycle{}", fmt::RESET, fmt::RESET);
+                    }
+                }
+
+                println!(
+                    "{}🫀 tick{} coins={} active={} calls={} discovered={}",
+                    fmt::ORANGE, fmt::RESET,
+                    coins.len(),
+                    active.len(),
+                    calls.len(),
+                    discovered.len()
+                );
+
+               // 3) Market polling
+let mint_list: Vec<String> = coins.keys().cloned().collect();
+market.poll(&cfg, &mint_list).await;
+
+// 3.5) Sync pair_address from market -> CoinState so per-coin ingest can work
+// Pick ONE of the two blocks below depending on MarketSample.pair_address type.
+
+// --- OPTION A: if MarketSample has `pair_address: Option<String>` ---
+{
+    let mut paired = 0usize;
+    for (mint, st) in coins.iter_mut() {
+        if st.pair_address.is_some() {
+            paired += 1;
+            continue;
+        }
+        if let Some(ms) = market.map.get(mint) {
+            if let Some(pa) = ms.pair_address.as_deref() {
+                let pa = pa.trim();
+                if !pa.is_empty() {
+                    st.pair_address = Some(pa.to_string());
+                    paired += 1;
+                }
+            }
+        }
+    }
+    eprintln!("DBG pair_address: {}/{} coins paired", paired, coins.len());
+}
+
+// --- OPTION B: if MarketSample has `pair_address: String` ---
+// {
+//     let mut paired = 0usize;
+//     for (mint, st) in coins.iter_mut() {
+//         if st.pair_address.is_some() {
+//             paired += 1;
+//             continue;
+//         }
+//         if let Some(ms) = market.map.get(mint) {
+//             let pa = ms.pair_address.trim();
+//             if !pa.is_empty() {
+//                 st.pair_address = Some(pa.to_string());
+//                 paired += 1;
+//             }
+//         }
+//     }
+//     eprintln!("DBG pair_address: {}/{} coins paired", paired, coins.len());
+// }
+
+// 4) Onchain events (Helius)
+
+// 4A) Wallet-learning ingest (optional “seed wallets” mode)
+let wallets: Vec<String> = cfg.helius_wallets
+    .split(',')
+    .map(|s| s.trim().to_string())
+    .filter(|s| !s.is_empty())
+    .collect();
+
+if !wallets.is_empty() {
+    let _ = crate::helius::ingest::ingest_wallet_activity(
+        &cfg,
+        &mut db,
+        &mut coins,
+        &wallets,
+    )
+    .await;
+}
+
+// 4B) Per-coin ingest (THIS is what fills signers for the meme coins you’re tracking)
+// IMPORTANT: this should run even if HELIUS_WALLETS is empty.
+let _ = crate::helius::per_coin::ingest_pairs_for_active(
+    &cfg,
+    &mut db,
+    &mut coins,
+    &active,
+)
+.await;
+
+// 5) Score & manage
+score_and_manage(
+    &cfg,
+    &mut coins,
+    &mut active,
+    &mut queue,
+    &mut calls,
+    &market,
+    &mut shadow,
+    &mut db,
+);
+
+resolver::resolve_calls(&cfg, &coins, &mut calls);
+
+tokio::time::sleep(Duration::from_secs(cfg.main_loop_sleep)).await;

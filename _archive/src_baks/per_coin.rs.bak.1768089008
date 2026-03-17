@@ -1,0 +1,133 @@
+use crate::config::Config;
+use crate::helius::ingest::{
+    classify_tier, estimate_sol_mag, is_ignored_mint, tx_signers, HeliusTx,
+};
+use crate::types::{CoinState, Event};
+use anyhow::Result;
+use reqwest::Client;
+use std::collections::HashMap;
+
+/// Per-coin ingest:
+/// For each active coin that has a `pair_address`, pull txs for that pair address,
+/// and attach events ONLY to that mint. This is what makes signers_5m non-zero on meme coins.
+pub async fn ingest_pairs_for_active(
+    cfg: &Config,
+    db: &mut crate::db::Db,
+    coins: &mut HashMap<String, CoinState>,
+    active: &[String],
+) -> Result<()> {
+    if cfg.helius_api_key.trim().is_empty() {
+        eprintln!("DBG per_coin ingest: HELIUS_API_KEY empty -> skipping");
+        return Ok(());
+    }
+
+    let client = Client::new();
+    let base = cfg.helius_addr_url.trim_end_matches('/');
+
+    for mint in active {
+        // ---- clone what we need FIRST (no long immutable borrow) ----
+        let pair_opt = coins.get(mint).and_then(|st| st.pair_address.clone());
+        let Some(pair) = pair_opt else {
+            continue;
+        };
+        let pair = pair.trim().to_string();
+        if pair.is_empty() {
+            continue;
+        }
+
+        let url = format!(
+            "{}/v0/addresses/{}/transactions?api-key={}&limit={}",
+            base,
+            pair,
+            cfg.helius_api_key.trim(),
+            cfg.fetch_limit
+        );
+
+        let resp = match client.get(&url).send().await {
+            Ok(r) => r,
+            Err(_) => continue,
+        };
+
+        if !resp.status().is_success() {
+            continue;
+        }
+
+        let txs: Vec<HeliusTx> = match resp.json().await {
+            Ok(j) => j,
+            Err(_) => continue,
+        };
+
+        if txs.is_empty() {
+            continue;
+        }
+
+        // NOW we can mutably borrow the coin state
+        let st_mut = match coins.get_mut(mint) {
+            Some(s) => s,
+            None => continue,
+        };
+
+        for tx in txs {
+            if tx.transaction_error.is_some() {
+                continue;
+            }
+
+            let sig = match tx.signature.as_deref() {
+                Some(s) if !s.is_empty() => s,
+                _ => continue,
+            };
+
+            let ts = tx.timestamp.unwrap_or(0);
+            if ts == 0 {
+                continue;
+            }
+
+            // de-dupe at DB level
+            if db.seen_sig(sig)? {
+                continue;
+            }
+            db.mark_sig(ts as i64, sig)?;
+
+            // fee payer fallback to pair address
+            let fee_payer = tx.fee_payer.clone().unwrap_or_else(|| pair.clone());
+            let sol_mag = estimate_sol_mag(&tx.native_transfers, &fee_payer);
+            let tier = classify_tier(sol_mag, cfg);
+
+            let signers = tx_signers(&tx, &fee_payer);
+
+            // Attach events
+            for wallet in signers.iter() {
+                st_mut.events.push(Event {
+                    wallet: wallet.clone(),
+                    ts,
+                    sol: sol_mag,
+                    tier,
+                });
+            }
+
+            // Write edges wallet->mint (filtered mint)
+            if !is_ignored_mint(mint) {
+                for wallet in signers.iter() {
+                    let _ = db.insert_wallet_edge(
+                        ts as i64,
+                        wallet,
+                        None,
+                        Some(mint.as_str()),
+                        "pair_tx",
+                        Some(sol_mag),
+                        Some(sig),
+                    );
+                }
+            }
+        }
+
+        // keep memory bounded
+        let keep_since = crate::time::now().saturating_sub(1200);
+        st_mut.events.retain(|e| e.ts >= keep_since);
+        if st_mut.events.len() > 50_000 {
+            st_mut.events.drain(0..10_000);
+        }
+    }
+
+    Ok(())
+}

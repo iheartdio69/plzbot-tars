@@ -491,7 +491,7 @@ pub fn process_calls(
 
         // 7) Refined momentum (refined only)
         if !gambol_ok {
-            let required_chg_5m: f64 = if fdv < 30_000.0 { 0.25 } else { 0.20 };
+            let required_chg_5m: f64 = if fdv < 30_000.0 { 0.10 } else { 0.07 };
             let baseline_fdv_opt: Option<f64> = fdv_approx_300s_ago(db, now_ts, mint.as_str());
 
             match baseline_fdv_opt {
@@ -814,7 +814,7 @@ pub fn process_calls(
 
         let revival_ok: bool = max_gap_secs >= revive_gap_secs;
 
-        let stale_secs: i64 = 30 * 60;
+        let stale_secs: i64 = 300;
         let revive_grace_secs: i64 = 90;
 
         let mut last_snapshot_ts: i64 = db
@@ -1138,40 +1138,6 @@ pub fn process_calls(
             tag_owned,
             chrono::Local::now().format("%-I:%M:%S %p")
         );
-
-        // --- concentration + spam vetoes ---
-        let (_total_edges, _top1_edges, top1_pct, _top5_edges, top5_pct) = db
-            .mint_concentration_5m(now_ts, mint)
-            .unwrap_or((0, 0, 0.0, 0, 0.0));
-
-        let (_uniq_src, _edges_total, edges_per_wallet) =
-            db.mint_edge_stats_5m(now_ts, mint).unwrap_or((0, 0, 0.0));
-
-        let sol_flow_5m = db.mint_sol_flow_5m(now_ts, mint).unwrap_or(0.0);
-
-        // HARD VETO 1: top1 dominance
-        if top1_pct >= 0.30 {
-            let _ = db.insert_skip_debug(now_ts, mint, "CONC_TOP1", ">=30", Some(fdv));
-            continue;
-        }
-
-        // HARD VETO 2: top5 dominance
-        if top5_pct >= 0.45 {
-            let _ = db.insert_skip_debug(now_ts, mint, "CONC_TOP5", ">=45", Some(fdv));
-            continue;
-        }
-
-        // HARD VETO 3: spam churn
-        let avg_sol_per_edge = if _total_edges > 0 {
-            sol_flow_5m / (_total_edges as f64)
-        } else {
-            0.0
-        };
-        if edges_per_wallet >= 3.5 && avg_sol_per_edge < 0.25 {
-            let _ =
-                db.insert_skip_debug(now_ts, mint, "SPAM_EDGES", "epw>=3.5&sol<0.25", Some(fdv));
-            continue;
-        }
 
         // Insert call
         if let Err(e) = db.insert_call(
