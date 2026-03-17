@@ -1,0 +1,178 @@
+warning: struct `DexSnap` is never constructed
+ --> src/bin/v2/market.rs:4:12
+  |
+4 | pub struct DexSnap {
+  |            ^^^^^^^
+  |
+  = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: struct `DexSearchResponse` is never constructed
+  --> src/bin/v2/market.rs:15:8
+   |
+15 | struct DexSearchResponse {
+   |        ^^^^^^^^^^^^^^^^^
+
+warning: struct `DexToken` is never constructed
+  --> src/bin/v2/market.rs:20:8
+   |
+20 | struct DexToken {
+   |        ^^^^^^^^
+
+warning: struct `DexLiquidity` is never constructed
+  --> src/bin/v2/market.rs:27:8
+   |
+27 | struct DexLiquidity {
+   |        ^^^^^^^^^^^^
+
+warning: struct `DexTxnCount` is never constructed
+  --> src/bin/v2/market.rs:32:8
+   |
+32 | struct DexTxnCount {
+   |        ^^^^^^^^^^^
+
+warning: struct `DexTxns` is never constructed
+  --> src/bin/v2/market.rs:38:8
+   |
+38 | struct DexTxns {
+   |        ^^^^^^^
+
+warning: struct `DexPair` is never constructed
+  --> src/bin/v2/market.rs:44:8
+   |
+44 | struct DexPair {
+   |        ^^^^^^^
+
+warning: function `parse_price` is never used
+  --> src/bin/v2/market.rs:58:4
+   |
+58 | fn parse_price(s: &Option<String>) -> Option<f64> {
+   |    ^^^^^^^^^^^
+
+warning: function `fetch_best_snap` is never used
+  --> src/bin/v2/market.rs:62:14
+   |
+62 | pub async fn fetch_best_snap(client: &reqwest::Client, mint: ...
+   |              ^^^^^^^^^^^^^^^
+
+warning: struct `Cand` is never constructed
+ --> src/bin/v2/state.rs:5:12
+  |
+5 | pub struct Cand {
+  |            ^^^^
+
+warning: struct `State` is never constructed
+  --> src/bin/v2/state.rs:16:12
+   |
+16 | pub struct State {
+   |            ^^^^^
+
+warning: multiple associated items are never used
+   --> src/bin/v2/state.rs:30:12
+    |
+ 29 | impl State {
+    | ---------- associated items in this implementation
+ 30 |     pub fn watch_len(&self) -> usize {
+    |            ^^^^^^^^^
+...
+ 34 |     pub fn watch_snapshot(&self, n: usize) -> Vec<String> {
+    |            ^^^^^^^^^^^^^^
+...
+ 38 |     pub fn new() -> Self {
+    |            ^^^
+...
+ 42 |     pub fn ingest_mint(&mut self, mint: String, cap: usize) ...
+    |            ^^^^^^^^^^^
+...
+ 64 |     pub fn update_snap(&mut self, mint: &str, snap: &DexSnap) {
+    |            ^^^^^^^^^^^
+...
+ 68 |     pub fn touch_watch_band(&mut self, mint: &str) {
+    |            ^^^^^^^^^^^^^^^^
+...
+ 72 |     pub fn first_seen(&self, mint: &str) -> i64 {
+    |            ^^^^^^^^^^
+...
+ 76 |     pub fn last_call_ts(&self, mint: &str) -> Option<i64> {
+    |            ^^^^^^^^^^^^
+...
+ 80 |     pub fn mark_called(&mut self, mint: &str, ts: i64) {
+    |            ^^^^^^^^^^^
+...
+ 84 |     pub fn next_poll_batch(&mut self, n: usize) -> Vec<Strin...
+    |            ^^^^^^^^^^^^^^^
+...
+108 |     pub fn top_candidates(&self, n: usize) -> Vec<Cand> {
+    |            ^^^^^^^^^^^^^^
+
+warning: function `now_ts` is never used
+   --> src/bin/v2/state.rs:139:4
+    |
+139 | fn now_ts() -> i64 {
+    |    ^^^^^^
+
+warning: fields `mint` and `price_usd` are never read
+ --> src/bin/v2/market.rs:5:9
+  |
+4 | pub struct DexSnap {
+  |            ------- fields in this struct
+5 |     pub mint: String,
+  |         ^^^^
+...
+8 |     pub price_usd: Option<f64>,
+  |         ^^^^^^^^^
+  |
+  = note: `DexSnap` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: fields `name` and `age_secs` are never read
+  --> src/bin/v2/state.rs:8:9
+   |
+ 5 | pub struct Cand {
+   |            ---- fields in this struct
+...
+ 8 |     pub name: Option<String>,
+   |         ^^^^
+...
+12 |     pub age_secs: Option<u64>,
+   |         ^^^^^^^^
+   |
+   = note: `Cand` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+warning: field `poll_cursor` is never read
+  --> src/bin/v2/state.rs:26:5
+   |
+16 | pub struct State {
+   |            ----- field in this struct
+...
+26 |     poll_cursor: usize,
+   |     ^^^^^^^^^^^
+
+warning: methods `touch_watch_band`, `last_call_ts`, `mark_called`, and `next_poll_batch` are never used
+  --> src/bin/v2/state.rs:68:12
+   |
+29 | impl State {
+   | ---------- methods in this implementation
+...
+68 |     pub fn touch_watch_band(&mut self, mint: &str) {
+   |            ^^^^^^^^^^^^^^^^
+...
+76 |     pub fn last_call_ts(&self, mint: &str) -> Option<i64> {
+   |            ^^^^^^^^^^^^
+...
+80 |     pub fn mark_called(&mut self, mint: &str, ts: i64) {
+   |            ^^^^^^^^^^^
+...
+84 |     pub fn next_poll_batch(&mut self, n: usize) -> Vec<String> {
+   |            ^^^^^^^^^^^^^^^
+
+warning: `solana_meme` (bin "v2") generated 17 warnings
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.79s
+     Running `target/debug/v2`
+✅ V2 Runner Radar booted
+Band: watch $8000–$200000 | call $12000–$250000 | min_liq=$800 | min_tx5=15 | call_score_min=40
+🟣 pumpportal connecting: wss://pumpportal.fun/api/data
+QUEUE len=0
+ACTIVE(0): (none)
+✅ pumpportal connected
+🟣 pumpportal +1 | watch_pool=1
+QUEUE len=1
+ACTIVE(0): (none)

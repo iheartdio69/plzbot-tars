@@ -1,7 +1,6 @@
 // src/app.rs
 use crate::config::Config;
-use crate::helius::client::fetch_onchain_events;
-use crate::market::cache::MarketCache;
+use crate::helius::client::fetch_address_txs;use crate::market::cache::MarketCache;
 use crate::market::discovery::{merge_discovered, MarketDiscovery};
 use crate::resolver::resolve_calls;
 use crate::scoring::engine::score_and_manage;
@@ -26,11 +25,14 @@ pub async fn run(cfg: Config) {
     let mut discovered: VecDeque<String> = VecDeque::new();
     let mut discovery = MarketDiscovery::default();
     let mut shadow = ShadowMap::new();
-
-
-      let mut db = crate::db::Db::open("solana_meme.sqlite").expect("db open failed");
       let mut db = crate::db::Db::open(&cfg.sqlite_path).expect("db open failed");
-    loop {
+    let gov = crate::governor::Governor::new(
+    20.0, 35.0,   // rpc
+    5.0, 10.0,    // das
+    1.0, 2.0,     // enhanced
+);
+    
+      loop {
         println!(
             "🫀 tick | coins={} active={} calls={} discovered={}",
             coins.len(),
@@ -42,7 +44,7 @@ pub async fn run(cfg: Config) {
         // Discovery (Dexscreener search -> new mints)
         if discovery.should_run(&cfg) {
             let new_mints = discovery.run(&cfg).await;
-            let added = merge_discovered(&mut discovered, new_mints.clone(), 200);
+            let added = merge_discovered(&mut discovered, new_mints.clone(), 2000);
             if added > 0 {
                 println!(
                     "🕵️ Discovered {} new mints ({} added)",
@@ -66,9 +68,8 @@ pub async fn run(cfg: Config) {
         });
         market.poll(&cfg, &mint_list).await;
 
-        // On-chain events (Helius)
-        fetch_onchain_events(&cfg, &mut coins).await;
-
+        fetch_address_txs(&cfg, &mut coins).await;
+        
         // Scoring / calling
         score_and_manage(
               &cfg,
@@ -83,5 +84,9 @@ pub async fn run(cfg: Config) {
         resolve_calls(&cfg, &coins, &mut calls);
 
         tokio::time::sleep(Duration::from_secs(cfg.main_loop_sleep)).await;
-    }
+        if gov.is_near_limit() {
+    eprintln!("⚠️ governor nearing monthly budget");
 }
+    
+      }
+    }

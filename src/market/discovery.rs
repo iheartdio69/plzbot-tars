@@ -99,10 +99,11 @@ impl MarketDiscovery {
                     continue;
                 }
 
-                // 24h age filter (or whatever you set)
-                if let (Some(cutoff_ms), Some(created_ms)) =
-                    (min_pair_created_ms, pair.pair_created_at)
-                {
+                // age filter (requires pairCreatedAt when DISCOVERY_MAX_AGE_SECS > 0)
+                if let Some(cutoff_ms) = min_pair_created_ms {
+                    let Some(created_ms) = pair.pair_created_at else {
+                        continue;
+                    };
                     if created_ms < cutoff_ms {
                         continue;
                     }

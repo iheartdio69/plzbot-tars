@@ -1,0 +1,112 @@
+mod counters;
+mod score;
+mod active;
+mod queue;
+mod calls;
+mod summary;
+mod context;
+
+pub use counters::Counters;
+pub use context::{Services, Collections};
+pub use score::score_all_coins;
+pub use active::{update_active_list, promote_from_queue};
+pub use queue::fill_queue;
+pub use calls::process_calls;
+pub use summary::print_summary;
+
+use crate::config::Config;
+use crate::market::cache::MarketCache;
+use crate::scoring::shadow::ShadowMap;
+use crate::db::Db;
+use std::collections::{HashMap, VecDeque};
+use crate::types::{CoinState, CallRecord};
+
+pub fn score_and_manage(
+    cfg: &Config,
+    coins: &mut HashMap<String, CoinState>,
+    active: &mut Vec<String>,
+    queue: &mut VecDeque<String>,
+    calls: &mut Vec<CallRecord>,
+    market: &MarketCache,
+    shadow_map: &mut ShadowMap,
+    db: &mut Db,
+) {
+    let mut counters = Counters::default();
+
+    let services = Services { cfg, market, shadow_map, db };
+    let mut collections = Collections { coins, active, queue, calls };
+
+    score_all_coins(&services, &mut collections, &mut counters);
+    update_active_list(&services, &mut collections, &mut counters);
+    fill_queue(&services, &mut collections, &mut counters);
+    promote_from_queue(&services, &mut collections, &mut counters);
+    let shadowed_after_call = process_calls(&services, &mut collections, &mut counters);
+    active::remove_shadowed(&mut collections.active, shadowed_after_call);
+    print_summary(&counters, collections.active.len(), collections.queue.len());
+}
+pub mod constants;
+
+
+// src/scoring/engine/mod.rs
+// src/scoring/mod.rs
+
+pub mod engine;          // your new modular engine folder (src/scoring/engine/)
+pub mod shadow;          // src/scoring/shadow.rs
+pub mod onchain;         // src/scoring/onchain.rs
+pub mod wallet_rep;      // src/scoring/wallet_rep.rs
+pub mod call_outcomes;   // src/scoring/call_outcomes.rs
+pub mod wallet_outcomes; // src/scoring/wallet_outcomes.rs
+pub mod window;          // if you use it elsewhere
+
+pub mod constants;
+pub mod counters;
+pub mod context;
+
+pub mod score;
+pub mod active;
+pub mod queue;
+pub mod calls;
+pub mod summary;
+
+// Re-exports (optional, but nice for callers/tests)
+pub use counters::Counters;
+pub use context::{Services, Collections};
+pub use score::score_all_coins;
+pub use active::{update_active_list, promote_from_queue, remove_shadowed};
+pub use queue::fill_queue;
+pub use calls::process_calls;
+pub use summary::print_summary;
+
+use crate::config::Config;
+use crate::db::Db;
+use crate::market::cache::MarketCache;
+use crate::scoring::shadow::ShadowMap;
+use crate::types::{CallRecord, CoinState};
+
+use std::collections::{HashMap, VecDeque};
+
+pub fn score_and_manage(
+    cfg: &Config,
+    coins: &mut HashMap<String, CoinState>,
+    active: &mut Vec<String>,
+    queue: &mut VecDeque<String>,
+    calls: &mut Vec<CallRecord>,
+    market: &MarketCache,
+    shadow_map: &mut ShadowMap,
+    db: &mut Db,
+) {
+    let mut counters = Counters::default();
+
+    let services = Services { cfg, market, shadow_map, db };
+    let mut collections = Collections { coins, active, queue, calls };
+
+    score_all_coins(&services, &mut collections, &mut counters);
+    update_active_list(&services, &mut collections, &mut counters);
+    fill_queue(&services, &mut collections, &mut counters);
+    promote_from_queue(&services, &mut collections, &mut counters);
+
+    let shadowed_after_call = process_calls(&services, &mut collections, &mut counters);
+    remove_shadowed(&mut collections.active, shadowed_after_call);
+
+    print_summary(&counters, collections.active.len(), collections.queue.len());
+}

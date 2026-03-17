@@ -5,6 +5,7 @@ use serde::Deserialize;
 pub struct HeliusTx {
     pub signature: Option<String>,
     pub timestamp: Option<u64>,
+    pub fee_payer: Option<String>,
 
     #[serde(default)]
     pub token_transfers: Vec<TokenTransfer>,
@@ -16,7 +17,7 @@ pub struct HeliusTx {
 #[derive(Debug, Clone, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct TokenTransfer {
-    pub mint: String,
+    pub mint: Option<String>,
 
     pub user_account: Option<String>,
     pub from_user_account: Option<String>,

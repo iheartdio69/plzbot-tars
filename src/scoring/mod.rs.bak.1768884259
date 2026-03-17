@@ -1,0 +1,13 @@
+
+// src/scoring/mod.rs
+
+pub mod engine;
+
+pub mod shadow;
+pub mod onchain;
+
+pub mod wallet_rep;
+pub mod wallet_outcomes;
+pub mod call_outcomes;
+
+pub mod window;

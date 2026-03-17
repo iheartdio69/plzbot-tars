@@ -1,0 +1,919 @@
+use super::Counters;
+use crate::config::Config;
+use crate::market::cache::MarketCache;
+use crate::scoring::shadow;
+use crate::types::{CallRecord, CoinState};
+use std::collections::{HashMap, HashSet};
+
+fn is_bonk_like_mint(mint: &str) -> bool {
+    mint.to_ascii_lowercase().contains("bonk")
+}
+
+/// Returns an approximate FDV from ~60s ago using existing snapshots.
+/// We pick a value in [now-90, now-45] and take the peak in that window.
+fn fdv_approx_60s_ago(db: &mut crate::db::Db, now_ts: i64, mint: &str) -> Option<f64> {
+    let start = now_ts - 90;
+    let end = now_ts - 45;
+
+    db.peak_fdv_for_mint_window(mint, start, end)
+        .ok()
+        .flatten()
+        .filter(|v| *v > 100.0) // avoid tiny/garbage baselines
+}
+
+fn skip_and_maybe_demote(
+    reason: &str,
+    bucket: &str,
+    mint: &str,
+    dbg_skips_left: &mut i32,
+    counters: &mut Counters,
+    coins: &mut HashMap<String, CoinState>,
+    remove_from_active: &mut HashSet<String>,
+    shadow_map: &mut shadow::ShadowMap,
+    cfg: &Config,
+    now: u64,
+    now_ts: i64,
+    demote_shadow_secs: u64,
+) {
+    // ----- debug skip print -----
+    if *dbg_skips_left > 0 {
+        *dbg_skips_left -= 1;
+        eprintln!(
+            "DBG SKIP reason={} bucket={} mint={}",
+            reason,
+            bucket,
+            crate::fmt::mint(mint)
+        );
+    }
+
+    // ----- counters (unchanged behavior) -----
+    match bucket {
+        "fdv" => counters.skip_fdv += 1,
+        "conc" => counters.skip_conc += 1,
+        "wallet" => counters.skip_wallet += 1,
+        "cooldown" => {
+            counters.skip_cooldown += 1;
+            counters.skipped_cooldown += 1;
+        }
+        "signer" => counters.skip_signer += 1,
+        _ => counters.skip_other += 1,
+    }
+    counters.skipped_threshold += 1;
+
+    // ----- Option B: ACTIVE clog control -----
+    // If it's ACTIVE and keeps failing, demote it so fresh mints can rotate in.
+    // Never count cooldown as a strike.
+    if bucket == "cooldown" {
+        return;
+    }
+
+    // If we already decided to remove it this tick, don't touch it again.
+    if remove_from_active.contains(mint) {
+        return;
+    }
+
+    let Some(st) = coins.get_mut(mint) else {
+        return;
+    };
+    if !st.active {
+        return;
+    }
+
+    // Hard safety: any conc skip demotes immediately.
+    if bucket == "conc" || reason == "CONC_RISK" {
+        st.active = false;
+        st.demote_streak = 0;
+        st.last_demote_ts = now_ts;
+
+        remove_from_active.insert(mint.to_string());
+        shadow::shadow_for(shadow_map, mint, now, demote_shadow_secs);
+
+        eprintln!(
+            "DBG DEMOTE_ACTIVE mint={} reason={} bucket={} streak=HARD",
+            crate::fmt::mint(mint),
+            reason,
+            bucket
+        );
+        return;
+    }
+
+    // Soft demote: build a streak.
+    st.demote_streak = st.demote_streak.saturating_add(1);
+
+    let threshold = cfg.demote_streak.max(1);
+    if st.demote_streak >= threshold {
+        st.active = false;
+        st.demote_streak = 0;
+        st.last_demote_ts = now_ts;
+
+        remove_from_active.insert(mint.to_string());
+        shadow::shadow_for(shadow_map, mint, now, demote_shadow_secs);
+
+        eprintln!(
+            "DBG DEMOTE_ACTIVE mint={} reason={} bucket={} streak_reached={}",
+            crate::fmt::mint(mint),
+            reason,
+            bucket,
+            threshold
+        );
+    }
+}
+   
+
+    // Call FDV band (HARD)
+    let call_fdv_min: f64 = cfg.min_call_fdv_usd;
+    let call_fdv_max: f64 = cfg.max_call_fdv_usd;
+
+    // GAMBOL lane (open-ish, but not suicidal)
+    let gambol_fdv_floor: f64 = 20_000.0;
+    let gambol_min_ev: u64 = 2;
+    let gambol_min_tx5: u64 = 120;
+    let gambol_max_signers: u64 = 3;
+
+    // Anti-spoof / deadzone
+    let dead_tx_min: u64 = 30;
+    let spoof_tx_min: u64 = 120;
+    let spoof_signers_max: u64 = 2;
+
+    // Refined-only gates
+    let wallet_delta_min: i32 = -10;
+    let refined_min_signer_strength: u64 = 12;
+
+    // Age gates
+    let soft_max_age_sec: u64 = 2 * 60 * 60; // 2h soft
+    let hard_max_age_sec: u64 = 2 * 24 * 60 * 60; // 2d hard
+
+    // Late-entry / chasing filter (refined only)
+    let late_prev_window_sec: i64 = 30 * 60; // 30m lookback
+    let late_exclude_tail_sec: i64 = 120; // ignore last 120s
+    let late_ratio: f64 = 1.35;
+
+    // Concentration analysis (all lanes)
+    let conc_window_sec: i64 = 300; // 5m
+    let conc_min_edges_sample: i64 = 80;
+    let conc_top1_thresh: f64 = 0.35;
+    let conc_top5_thresh: f64 = 0.75;
+
+    // Wallet-quality gate (refined only)
+    let wallet_quality_min_ge10: i64 = 2;
+    let wallet_veto_score: i64 = -50;
+    let wallet_veto_top1_pct: f64 = 0.18;
+
+    // Debug: print first N skip reasons per tick
+    let mut dbg_skips_left: i32 = 30;
+
+    let mut shadowed_after_call: Vec<String> = Vec::new();
+    let active_snapshot = active.clone();
+
+    // NEW: Track actives we want to remove this tick (demoted or called)
+    let mut remove_from_active: HashSet<String> = HashSet::new();
+
+    // NEW: How long to shadow a demoted mint so it doesn't bounce back instantly
+    let demote_shadow_secs: u64 = 60;
+
+    for mint in active_snapshot.iter() {
+        counters.considered += 1;
+
+    
+
+        // ------------------------------------------------------------
+        // 0) Quick excludes
+        // ------------------------------------------------------------
+        
+        if is_bonk_like_mint(mint) {
+    skip_and_maybe_demote(
+        "BONK_LIKE",
+        "other",
+        mint,
+        &mut dbg_skips_left,
+        counters,
+        coins,
+        &mut remove_from_active,
+        shadow_map,
+        cfg,
+        now,
+        now_ts,
+        demote_shadow_secs,
+    );
+    continue;
+    }
+
+     let ms = match market.map.get(mint) {
+     Some(v) => v,
+     None => {
+        skip_and_maybe_demote(
+            "NO_MARKET_SAMPLE",
+            "other",
+            mint,
+            &mut dbg_skips_left,
+            counters,
+            coins,
+            &mut remove_from_active,
+            shadow_map,
+            cfg,
+            now,
+            now_ts,
+            demote_shadow_secs,
+        );
+        continue;
+    }
+};
+
+pub fn process_calls(
+    cfg: &Config,
+    coins: &mut HashMap<String, CoinState>,
+    active: &mut Vec<String>,
+    calls: &mut Vec<CallRecord>,
+    market: &MarketCache,
+    shadow_map: &mut shadow::ShadowMap,
+    db: &mut crate::db::Db,
+    now: u64,
+    now_ts: i64,
+    counters: &mut Counters,
+) -> Vec<String> {
+    // ----------------------------
+    // Tunables
+    // ----------------------------
+    let cooldown_secs: i64 = 15 * 60;
+    ...
+
+        // ------------------------------------------------------------
+        // 1) Pull signals
+        // ------------------------------------------------------------
+        let fdv: f64 = ms.fdv.unwrap_or(0.0);
+        let tx5: u64 = ms.tx_5m.unwrap_or(0);
+
+        let signers: u64 = coins
+            .get(mint)
+            .map(|s| s.unique_signers_5m as u64)
+            .unwrap_or(0);
+
+        let ev: u64 = db.events_5m(now_ts, mint.as_str()).unwrap_or(0) as u64;
+
+        let uniq_sigs_real: u64 = db.uniq_sigs_5m(now_ts, mint.as_str()).unwrap_or(0);
+
+        // estimate for logs only
+        let uniq_sigs_est: u64 = if uniq_sigs_real == 0 && tx5 > 0 {
+            (tx5 / 3).max(1)
+        } else {
+            uniq_sigs_real
+        };
+
+        let signer_strength: u64 = std::cmp::max(signers, uniq_sigs_real);
+
+        let first_seen: u64 = coins.get(mint).map(|s| s.first_seen).unwrap_or(0);
+        let age_sec: u64 = now.saturating_sub(first_seen);
+
+        let wallet_delta: i32 = coins.get(mint).map(|s| s.wallet_delta).unwrap_or(0);
+
+        // ------------------------------------------------------------
+        // 2) Gate: FDV band (HARD)
+        // ------------------------------------------------------------
+        if fdv < call_fdv_min || fdv > call_fdv_max {
+    skip_and_maybe_demote(
+        "FDV_BAND",
+        "fdv",
+        mint,
+        &mut dbg_skips_left,
+        counters,
+        coins,
+        &mut remove_from_active,
+        shadow_map,
+        cfg,
+        now,
+        now_ts,
+        demote_shadow_secs,
+    );
+    continue;
+}
+
+        // ------------------------------------------------------------
+        // 3) Decide lane: refined vs gambol
+        // ------------------------------------------------------------
+        let gambol_ok: bool = fdv >= gambol_fdv_floor
+            && ev >= gambol_min_ev
+            && tx5 >= gambol_min_tx5
+            && signers <= gambol_max_signers;
+
+        if gambol_ok {
+            eprintln!(
+                "DBG GAMBOL_OK mint={} fdv={:.0} tx5={} signers={} ev={} uniq_real={} uniq_est={}",
+                crate::fmt::mint(mint),
+                fdv,
+                tx5,
+                signers,
+                ev,
+                uniq_sigs_real,
+                uniq_sigs_est
+            );
+        }
+
+        // ------------------------------------------------------------
+        // 4) Gate: late-entry filter (REFINED only)
+        // ------------------------------------------------------------
+        if !gambol_ok {
+            let peak_prev_30m: f64 = db
+                .peak_fdv_for_mint_window(
+                    mint,
+                    now_ts - late_prev_window_sec,
+                    now_ts - late_exclude_tail_sec,
+                )
+                .unwrap_or(None)
+                .unwrap_or(0.0);
+
+            if peak_prev_30m > 0.0 && fdv > 0.0 && peak_prev_30m >= fdv * late_ratio {
+    skip_and_maybe_demote(
+        "LATE_ENTRY",
+        "other",
+        mint,
+        &mut dbg_skips_left,
+        counters,
+        coins,
+        &mut remove_from_active,
+        shadow_map,
+        cfg,
+        now,
+        now_ts,
+        demote_shadow_secs,
+    );
+    continue;
+}
+
+        // ------------------------------------------------------------
+        // 5) Gate: spam guards (HARD)
+        // ------------------------------------------------------------
+        if signers == 0 && ev == 0 {
+    skip_and_maybe_demote(
+        "DEADZONE_NO_SIGNERS_NO_EVENTS",
+        "other",
+        mint,
+        &mut dbg_skips_left,
+        counters,
+        coins,
+        &mut remove_from_active,
+        shadow_map,
+        cfg,
+        now,
+        now_ts,
+        demote_shadow_secs,
+    );
+    continue;
+}
+
+if tx5 >= spoof_tx_min && signers <= spoof_signers_max {
+    skip_and_maybe_demote(
+        "SPOOF_BUSY_LOW_SIGNERS",
+        "other",
+        mint,
+        &mut dbg_skips_left,
+        counters,
+        coins,
+        &mut remove_from_active,
+        shadow_map,
+        cfg,
+        now,
+        now_ts,
+        demote_shadow_secs,
+    );
+    continue;
+}
+
+if tx5 < dead_tx_min && signers < 3 && ev < 3 {
+    skip_and_maybe_demote(
+        "LOW_SIGNAL",
+        "other",
+        mint,
+        &mut dbg_skips_left,
+        counters,
+        coins,
+        &mut remove_from_active,
+        shadow_map,
+        cfg,
+        now,
+        now_ts,
+        demote_shadow_secs,
+    );
+    continue;
+}
+
+// ------------------------------------------------------------
+// 6) Gate: refined onchain signal (REFINED only)
+// ------------------------------------------------------------
+if !gambol_ok {
+    let refined_onchain_ok =
+        signers > 0 || ev > 0 || signer_strength >= refined_min_signer_strength;
+
+    if !refined_onchain_ok {
+        skip_and_maybe_demote(
+            "REFINED_ONCHAIN_WEAK",
+            "other",
+            mint,
+            &mut dbg_skips_left,
+            counters,
+            coins,
+            &mut remove_from_active,
+            shadow_map,
+            cfg,
+            now,
+            now_ts,
+            demote_shadow_secs,
+        );
+        continue;
+    }
+}
+
+        // ------------------------------------------------------------
+        // 7) Gate: refined momentum (REFINED only)
+        //     - 15k–30k requires +15% in ~60s
+        //     - 30k–55k requires +12% in ~60s
+        // ------------------------------------------------------------
+        if !gambol_ok {
+            let required_chg_60s: f64 = if fdv < 30_000.0 { 0.15 } else { 0.12 };
+
+            if let Some(fdv_60s) = fdv_approx_60s_ago(db, now_ts, mint.as_str()) {
+    // guard divide-by-zero / garbage
+    if fdv_60s <= 0.0 {
+        skip_and_maybe_demote(
+            "MOMENTUM_BAD_BASELINE",
+            "other",
+            mint,
+            &mut dbg_skips_left,
+            counters,
+            coins,
+            &mut remove_from_active,
+            shadow_map,
+            cfg,
+            now,
+            now_ts,
+            demote_shadow_secs,
+        );
+        continue;
+    }
+
+    let chg_60s = (fdv / fdv_60s) - 1.0;
+    if chg_60s < required_chg_60s {
+        skip_and_maybe_demote(
+            "REFINED_NO_ACCEL_60S",
+            "other",
+            mint,
+            &mut dbg_skips_left,
+            counters,
+            coins,
+            &mut remove_from_active,
+            shadow_map,
+            cfg,
+            now,
+            now_ts,
+            demote_shadow_secs,
+        );
+        continue;
+    }
+} else {
+    // light penalty only (demote streak handled by skip_and_maybe_demote)
+    if let Some(st) = coins.get_mut(mint) {
+        st.score = st.score.saturating_add(-5);
+    }
+
+    skip_and_maybe_demote(
+        "NO_SNAPSHOT_HISTORY_FOR_MOMENTUM",
+        "other",
+        mint,
+        &mut dbg_skips_left,
+        counters,
+        coins,
+        &mut remove_from_active,
+        shadow_map,
+        cfg,
+        now,
+        now_ts,
+        demote_shadow_secs,
+    );
+    continue;
+}
+}
+
+// ------------------------------------------------------------
+// 8) Gate: wallet delta (REFINED only)
+// ------------------------------------------------------------
+if !gambol_ok && wallet_delta < wallet_delta_min {
+    skip_and_maybe_demote(
+        "WALLET_DELTA_TOO_NEG",
+        "wallet",
+        mint,
+        &mut dbg_skips_left,
+        counters,
+        coins,
+        &mut remove_from_active,
+        shadow_map,
+        cfg,
+        now,
+        now_ts,
+        demote_shadow_secs,
+    );
+    continue;
+}
+
+// ------------------------------------------------------------
+// 9) Gate: age rules
+// ------------------------------------------------------------
+let revival_ok: bool = age_sec > soft_max_age_sec && signer_strength >= 25;
+
+if age_sec > hard_max_age_sec {
+    skip_and_maybe_demote(
+        "AGE_TOO_OLD_HARD",
+        "other",
+        mint,
+        &mut dbg_skips_left,
+        counters,
+        coins,
+        &mut remove_from_active,
+        shadow_map,
+        cfg,
+        now,
+        now_ts,
+        demote_shadow_secs,
+    );
+    continue;
+}
+
+if age_sec > soft_max_age_sec && !revival_ok {
+    skip_and_maybe_demote(
+        "AGE_TOO_OLD_SOFT",
+        "other",
+        mint,
+        &mut dbg_skips_left,
+        counters,
+        coins,
+        &mut remove_from_active,
+        shadow_map,
+        cfg,
+        now,
+        now_ts,
+        demote_shadow_secs,
+    );
+    continue;
+}
+
+if !gambol_ok && signer_strength < 10 {
+    skip_and_maybe_demote(
+        "REFINED_TOO_FEW_REAL_SIGNERS",
+        "signer",
+        mint,
+        &mut dbg_skips_left,
+        counters,
+        coins,
+        &mut remove_from_active,
+        shadow_map,
+        cfg,
+        now,
+        now_ts,
+        demote_shadow_secs,
+    );
+    continue;
+}
+        // ------------------------------------------------------------
+        // 10) Gate: cooldown
+        // ------------------------------------------------------------
+        if let Ok(Some(last_ts)) = db.last_call_ts_for_mint(mint.as_str()) {
+            if now_ts - last_ts < cooldown_secs {
+                skip_and_maybe_demote(
+                    "COOLDOWN",
+                    "cooldown",
+                    mint,
+                    &mut dbg_skips_left,
+                    counters,
+                    coins,
+                    &mut remove_from_active,
+                    shadow_map,
+                    cfg,
+                    now,
+                    now_ts,
+                    demote_shadow_secs,
+                );
+                continue;
+            }
+        }
+
+        // ------------------------------------------------------------
+        // 11) Gate: concentration PRE-CALL (ALL lanes)
+        // ------------------------------------------------------------
+        let call_ts = now_ts;
+        let start_ts = call_ts - conc_window_sec;
+        let end_ts = call_ts;
+
+        let mut conc_risk = false;
+        let mut conc_total_edges: i64 = 0;
+        let mut conc_top1_edges: i64 = 0;
+        let mut conc_top5_edges: i64 = 0;
+        let mut conc_top1_pct: f64 = 0.0;
+        let mut conc_top5_pct: f64 = 0.0;
+        let mut conc_top1_wallet: String = String::new();
+
+        if let Ok(top) = db.top_wallets_for_mint_window(mint, start_ts, end_ts, 25) {
+            conc_total_edges = db
+                .total_edges_for_mint_window(mint, start_ts, end_ts)
+                .unwrap_or(0);
+
+            if conc_total_edges > 0 {
+                conc_top1_edges = top.get(0).map(|(_, e)| *e).unwrap_or(0);
+                conc_top5_edges = top.iter().take(5).map(|(_, e)| *e).sum();
+
+                conc_top1_pct = conc_top1_edges as f64 / conc_total_edges as f64;
+                conc_top5_pct = conc_top5_edges as f64 / conc_total_edges as f64;
+
+                conc_top1_wallet = top.get(0).map(|(w, _)| w.clone()).unwrap_or_default();
+
+                let enough = conc_total_edges >= conc_min_edges_sample;
+                conc_risk = enough
+                    && (conc_top1_pct >= conc_top1_thresh || conc_top5_pct >= conc_top5_thresh);
+            }
+        }
+
+       if conc_risk {
+    if let Some(st) = coins.get_mut(mint) {
+        st.skip_call_for_conc = true;
+    }
+
+    skip_and_maybe_demote(
+        "CONC_RISK",
+        "conc",
+        mint,
+        &mut dbg_skips_left,
+        counters,
+        coins,
+        &mut remove_from_active,
+        shadow_map,
+        cfg,
+        now,
+        now_ts,
+        demote_shadow_secs,
+    );
+    continue;
+}
+        // ------------------------------------------------------------
+        // 12) Wallet-quality gate (REFINED only)
+        // ------------------------------------------------------------
+        let mut ge10_cnt: i64 = 0;
+        let mut veto_bad_min: bool = false;
+
+        if !gambol_ok {
+            if let Ok(top) = db.top_wallets_for_mint_window(mint, start_ts, end_ts, 25) {
+                for (w, _) in top.iter().take(10) {
+                    if db.wallet_score(w).unwrap_or(0) >= 10 {
+                        ge10_cnt += 1;
+                    }
+                }
+                if let Some((w0, _)) = top.get(0) {
+                    veto_bad_min = db.wallet_score(w0).unwrap_or(0) <= wallet_veto_score;
+                }
+            }
+
+           if veto_bad_min {
+    skip_and_maybe_demote(
+        "WALLET_VETO_BAD_MIN",
+        "wallet",
+        mint,
+        &mut dbg_skips_left,
+        counters,
+        coins,
+        &mut remove_from_active,
+        shadow_map,
+        cfg,
+        now,
+        now_ts,
+        demote_shadow_secs,
+    );
+    continue;
+}
+
+if ge10_cnt < wallet_quality_min_ge10 {
+    skip_and_maybe_demote(
+        "WALLET_QUALITY_TOO_LOW",
+        "wallet",
+        mint,
+        &mut dbg_skips_left,
+        counters,
+        coins,
+        &mut remove_from_active,
+        shadow_map,
+        cfg,
+        now,
+        now_ts,
+        demote_shadow_secs,
+    );
+    continue;
+}
+            // gambol: still compute for debug + call_debug
+            if let Ok(top) = db.top_wallets_for_mint_window(mint, start_ts, end_ts, 10) {
+                for (w, _) in top.iter().take(10) {
+                    if db.wallet_score(w).unwrap_or(0) >= 10 {
+                        ge10_cnt += 1;
+                    }
+                }
+            }
+        }
+
+        // ------------------------------------------------------------
+        // 13) Final top1 veto (ALL lanes)
+        // ------------------------------------------------------------
+        let top1_wallet_score: i64 = if !conc_top1_wallet.is_empty() {
+            db.wallet_score(&conc_top1_wallet).unwrap_or(0)
+        } else {
+            0
+        };
+
+        let veto_bad_top1: bool =
+            top1_wallet_score <= wallet_veto_score && conc_top1_pct >= wallet_veto_top1_pct;
+
+        if veto_bad_top1 {
+            skip_and_maybe_demote(
+                "TOP1_VETO",
+                "wallet",
+                mint,
+                &mut dbg_skips_left,
+                counters,
+                coins,
+                &mut remove_from_active,
+                shadow_map,
+                cfg,
+                now,
+                now_ts,
+                demote_shadow_secs,
+            );
+            continue;
+        }
+
+        // ------------------------------------------------------------
+        // 14) ACCEPT CALL
+        // ------------------------------------------------------------
+        let base_score: i32 = coins.get(mint).map(|s| s.score).unwrap_or(0);
+        let effective_score: i32 = base_score.saturating_add(wallet_delta);
+
+        calls.push(CallRecord {
+            mint: mint.clone(),
+            ts: now,
+            score: effective_score,
+        });
+        counters.called += 1;
+
+        // Tags
+        let mut tags: Vec<&str> = Vec::new();
+        if gambol_ok {
+            tags.push("GAMBOL");
+        }
+        if revival_ok {
+            tags.push("REVIVE");
+        }
+        if wallet_delta > 0 {
+            tags.push("WPLUS");
+        }
+        let tag_owned = tags.join("|");
+        let tag_opt: Option<&str> = if tag_owned.is_empty() {
+            None
+        } else {
+            Some(&tag_owned)
+        };
+
+        // Print
+        let line = crate::fmt::call_line(
+            mint.as_str(),
+            fdv,
+            effective_score,
+            tx5,
+            signers as usize,
+            ev as usize,
+        );
+        if gambol_ok {
+            println!("{}", crate::fmt::red(&line));
+        } else {
+            println!("{}", line);
+        }
+        println!(
+            "   🕒 local={}",
+            chrono::Local::now().format("%-I:%M:%S %p")
+        );
+
+        // Insert call
+        if let Err(e) = db.insert_call(
+            call_ts,
+            mint,
+            fdv,
+            effective_score,
+            tx5,
+            signers,
+            ev as usize,
+            tag_opt,
+        ) {
+            eprintln!(
+                "DBG insert_call ERR mint={} err={:?}",
+                crate::fmt::mint(mint),
+                e
+            );
+            continue;
+        }
+
+        // Snap top wallets at call time
+        if let Ok(top) = db.top_wallets_for_mint_window(mint, start_ts, end_ts, 25) {
+            if !top.is_empty() {
+                if let Err(e) = db.insert_call_top_wallets(mint, call_ts, &top) {
+                    eprintln!(
+                        "DBG insert_call_top_wallets ERR mint={} err={:?}",
+                        crate::fmt::mint(mint),
+                        e
+                    );
+                }
+            }
+        }
+
+        let top1_is_whale: bool = if !conc_top1_wallet.is_empty() {
+            db.watchlist_has_wallet(&conc_top1_wallet).unwrap_or(false)
+        } else {
+            false
+        };
+
+        if let Err(e) = db.insert_call_debug(
+            call_ts,
+            mint.as_str(),
+            fdv,
+            effective_score,
+            tx5,
+            signers,
+            ev as usize,
+            signer_strength,
+            age_sec,
+            wallet_delta,
+            conc_total_edges,
+            conc_top1_edges,
+            conc_top5_edges,
+            conc_top1_pct,
+            conc_top5_pct,
+            conc_top1_wallet.as_str(),
+            top1_wallet_score,
+            top1_is_whale,
+            ge10_cnt,
+            veto_bad_top1,
+            revival_ok,
+            gambol_ok,
+            conc_risk,
+        ) {
+            eprintln!(
+                "DBG insert_call_debug ERR mint={} err={:?}",
+                crate::fmt::mint(mint),
+                e
+            );
+        }
+
+        // Snapshot mint at call time
+        let _ = db.insert_snapshot(
+            call_ts,
+            mint,
+            Some(fdv),
+            ms.tx_5m,
+            effective_score,
+            signers,
+            ev as usize,
+            first_seen,
+            true,
+            true,
+        );
+
+        // Log file
+        let log = format!(
+            "{},{},{:.0},{},{},{}",
+            call_ts, mint, fdv, effective_score, tx5, signers
+        );
+        crate::call_log::append_call_line(&log);
+
+        shadow::shadow_for(shadow_map, mint.as_str(), now, 180);
+        shadowed_after_call.push(mint.clone());
+        if let Some(st) = coins.get_mut(mint) {
+            st.active = false;
+
+            // success resets clog counters
+            st.demote_streak = 0;
+            st.last_demote_ts = 0;
+        }
+
+        // remove from active vec this tick
+        remove_from_active.insert(mint.clone());
+
+        eprintln!(
+            "DBG CALL mint={} fdv={:.0} tx5={} signers={} ev={} uniq_real={} uniq_est={} strength={} wallet_delta={} tags={}",
+            crate::fmt::mint(mint),
+            fdv,
+            tx5,
+            signers,
+            ev,
+            uniq_sigs_real,
+            uniq_sigs_est,
+            signer_strength,
+            wallet_delta,
+            tag_owned
+        );
+    // actually remove demoted/called mints from active vec
+    if !remove_from_active.is_empty() {
+        active.retain(|m| !remove_from_active.contains(m));
+    }
+
+    shadowed_after_call
+}

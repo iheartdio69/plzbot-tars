@@ -1,0 +1,397 @@
+use crate::market::DexSnap;
+use crate::state::Cand;
+use crate::state::State;
+use futures_util::{SinkExt, StreamExt};
+use serde_json::json;
+use std::time::{Duration, Instant};
+use tokio::sync::mpsc;
+use tokio_tungstenite::tungstenite::Message;
+#[derive(Clone, Debug)]
+pub struct V2Cfg {
+    pub pumpportal_enabled: bool,
+    pub pumpportal_wss: String,
+    pub pumpportal_api_key: String,
+    pub pumpportal_channel: String,
+
+    pub watch_min_fdv_usd: f64,
+    pub watch_max_fdv_usd: f64,
+    pub call_min_fdv_usd: f64,
+    pub call_max_fdv_usd: f64,
+
+    pub min_liq_usd: f64,
+    pub min_tx_5m: u64,
+
+    pub max_coin_age_secs: u64,
+    pub poll_every_ms: u64,
+    pub poll_batch: usize,
+
+    pub top_n_print: usize,
+    pub call_cooldown_secs: i64,
+}
+
+fn env_str(k: &str, d: &str) -> String {
+    std::env::var(k).unwrap_or_else(|_| d.to_string())
+}
+fn env_bool(k: &str, d: bool) -> bool {
+    std::env::var(k)
+        .ok()
+        .map(|v| matches!(v.to_lowercase().as_str(), "1" | "true" | "yes" | "y" | "on"))
+        .unwrap_or(d)
+}
+fn env_u64(k: &str, d: u64) -> u64 {
+    std::env::var(k)
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(d)
+}
+fn env_i64(k: &str, d: i64) -> i64 {
+    std::env::var(k)
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(d)
+}
+fn env_usize(k: &str, d: usize) -> usize {
+    std::env::var(k)
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(d)
+}
+fn env_f64(k: &str, d: f64) -> f64 {
+    std::env::var(k)
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(d)
+}
+
+pub fn load_v2_cfg() -> V2Cfg {
+    let _ = dotenvy::dotenv();
+
+    V2Cfg {
+        pumpportal_enabled: env_bool("PUMPPORTAL_ENABLED", true),
+        pumpportal_wss: env_str("PUMPPORTAL_WSS", "wss://pumpportal.fun/api/data"),
+        pumpportal_api_key: env_str("PUMPPORTAL_API_KEY", ""),
+        pumpportal_channel: env_str("PUMPPORTAL_CHANNEL", "subscribeNewToken"),
+
+        watch_min_fdv_usd: env_f64("WATCH_MIN_FDV_USD", 15_000.0),
+        watch_max_fdv_usd: env_f64("WATCH_MAX_FDV_USD", 120_000.0),
+        call_min_fdv_usd: env_f64("CALL_MIN_FDV_USD", 20_000.0),
+        call_max_fdv_usd: env_f64("CALL_MAX_FDV_USD", 120_000.0),
+
+        min_liq_usd: env_f64("MIN_LIQ_USD", 2_500.0),
+        min_tx_5m: env_u64("MIN_TX_5M", 40),
+
+        max_coin_age_secs: env_u64("MAX_COIN_AGE_SECS", 2 * 24 * 60 * 60),
+        poll_every_ms: env_u64("V2_POLL_EVERY_MS", 2500),
+        poll_batch: env_usize("V2_POLL_BATCH", 40),
+
+        top_n_print: env_usize("V2_TOP_N_PRINT", 3),
+        call_cooldown_secs: env_i64("V2_CALL_COOLDOWN_SECS", 15 * 60),
+    }
+}
+
+fn now_ts() -> i64 {
+    let s = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or(Duration::from_secs(0))
+        .as_secs();
+    s as i64
+}
+
+pub async fn run() {
+    let cfg = load_v2_cfg();
+
+    println!("✅ V2 Runner Radar (price-first) booted");
+    println!(
+        "Band: watch ${:.0}–${:.0} | call ${:.0}–${:.0} | min_liq=${:.0} | min_tx5={}",
+        cfg.watch_min_fdv_usd,
+        cfg.watch_max_fdv_usd,
+        cfg.call_min_fdv_usd,
+        cfg.call_max_fdv_usd,
+        cfg.min_liq_usd,
+        cfg.min_tx_5m
+    );
+
+    let (tx, mut rx) = mpsc::channel::<String>(50_000);
+
+    if cfg.pumpportal_enabled {
+        tokio::spawn(pumpportal_task(cfg.clone(), tx));
+    } else {
+        println!("🟣 pumpportal disabled (PUMPPORTAL_ENABLED=false)");
+    }
+
+    let client = reqwest::Client::new();
+    let mut st = State::new();
+
+    let mut last_print = Instant::now();
+    let mut last_tick = Instant::now();
+
+    loop {
+        let mut added = 0usize;
+        while let Ok(mint) = rx.try_recv() {
+            if st.ingest_mint(mint, 50_000) {
+                added += 1;
+            }
+        }
+        if added > 0 {
+            println!("🟣 pumpportal +{} | watch_pool={}", added, st.watch_len());
+        }
+
+        if last_tick.elapsed().as_millis() as u64 >= cfg.poll_every_ms {
+            let batch = st.next_poll_batch(cfg.poll_batch);
+            if !batch.is_empty() {
+                let mut hits = 0usize;
+
+                for mint in batch.iter() {
+                    let mint = mint.to_string();
+                    let snap = crate::market::fetch_best_snap(&client, &mint).await;
+
+                    if let Some(s) = snap {
+                        st.update_snap(&mint, &s);
+
+                        if should_watch(&cfg, &s, st.first_seen(&mint)) {
+                            st.touch_watch_band(&mint);
+                        }
+
+                        if should_call(&cfg, &s, st.first_seen(&mint), st.last_call_ts(&mint)) {
+                            st.mark_called(&mint, now_ts());
+                            print_call(&mint, &s);
+                            hits += 1;
+                        }
+                    }
+                }
+
+                if hits > 0 {
+                    println!("🎯 calls_this_tick={}", hits);
+                }
+            }
+
+            last_tick = Instant::now();
+        }
+
+        if last_print.elapsed() >= Duration::from_secs(10) {
+            print_queue(&st);
+            last_print = Instant::now();
+        }
+
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+}
+
+fn contains_bonk(s: &DexSnap) -> bool {
+    let a = s.symbol.as_deref().unwrap_or("").to_lowercase();
+    let b = s.name.as_deref().unwrap_or("").to_lowercase();
+    a.contains("bonk") || b.contains("bonk")
+}
+
+fn should_watch(cfg: &V2Cfg, s: &DexSnap, first_seen_unix: i64) -> bool {
+    if contains_bonk(s) {
+        return false;
+    }
+    let fdv = s.fdv.unwrap_or(0.0);
+    if fdv < cfg.watch_min_fdv_usd || fdv > cfg.watch_max_fdv_usd {
+        return false;
+    }
+    let age = now_ts().saturating_sub(first_seen_unix) as u64;
+    if age > cfg.max_coin_age_secs {
+        return false;
+    }
+    true
+}
+
+fn should_call(cfg: &V2Cfg, s: &DexSnap, first_seen_unix: i64, last_call_ts: Option<i64>) -> bool {
+    if contains_bonk(s) {
+        return false;
+    }
+    let fdv = s.fdv.unwrap_or(0.0);
+    if fdv < cfg.call_min_fdv_usd || fdv > cfg.call_max_fdv_usd {
+        return false;
+    }
+    let age = now_ts().saturating_sub(first_seen_unix) as u64;
+    if age > cfg.max_coin_age_secs {
+        return false;
+    }
+    if s.liq_usd.unwrap_or(0.0) < cfg.min_liq_usd {
+        return false;
+    }
+    if s.tx_5m.unwrap_or(0) < cfg.min_tx_5m {
+        return false;
+    }
+    if let Some(prev) = last_call_ts {
+        if now_ts() - prev < cfg.call_cooldown_secs {
+            return false;
+        }
+    }
+    true
+}
+
+fn score_of(cfg: &V2Cfg, row: &Cand) -> i32 {
+    let fdv = row.fdv.unwrap_or(0.0);
+    let liq = row.liq_usd.unwrap_or(0.0);
+    let tx5 = row.tx_5m.unwrap_or(0) as i32;
+
+    if fdv <= 0.0 {
+        return 0;
+    }
+
+    let mut sc: i32 = 0;
+    if fdv >= cfg.watch_min_fdv_usd && fdv <= cfg.watch_max_fdv_usd {
+        sc += 20;
+    }
+    if fdv >= cfg.call_min_fdv_usd && fdv <= cfg.call_max_fdv_usd {
+        sc += 10;
+    }
+    if liq >= cfg.min_liq_usd {
+        sc += 15;
+    }
+    if tx5 >= cfg.min_tx_5m as i32 {
+        sc += 20;
+    }
+    sc += 10;
+
+    sc
+}
+
+fn print_call(mint: &str, s: &DexSnap) {
+    println!(
+        "🚨 CALL {} {} fdv=${:.0} liq=${:.0} tx5={}",
+        s.symbol.clone().unwrap_or_else(|| "?".to_string()),
+        mint,
+        s.fdv.unwrap_or(0.0),
+        s.liq_usd.unwrap_or(0.0),
+        s.tx_5m.unwrap_or(0)
+    );
+}
+
+fn print_queue(st: &State) {
+    println!("V2 QUEUE_LEN={}", st.watch_len());
+}
+
+fn print_top(cfg: &V2Cfg, st: &State) {
+    let top = st.top_candidates(cfg.top_n_print);
+
+    let score_of = |row: &Cand| -> i32 {
+        let fdv = row.fdv.unwrap_or(0.0);
+        let liq = row.liq_usd.unwrap_or(0.0);
+        let tx5 = row.tx_5m.unwrap_or(0) as i32;
+
+        let mut sc: i32 = 0;
+
+        // in watch band gets base points
+        if fdv >= cfg.watch_min_fdv_usd && fdv <= cfg.call_max_fdv_usd {
+            sc += 10;
+        }
+
+        // closer to call band gets extra
+        if fdv >= cfg.call_min_fdv_usd && fdv <= cfg.call_max_fdv_usd {
+            sc += 10;
+        }
+
+        if liq >= cfg.min_liq_usd {
+            sc += 10;
+        }
+        if tx5 >= cfg.min_tx_5m as i32 {
+            sc += 10;
+        }
+
+        // prefer newer coins (soft)
+        sc
+    };
+
+    let active_line = top
+        .iter()
+        .take(cfg.top_n_print)
+        .map(|row| format!("{:>3} {}", score_of(row), row.mint))
+        .collect::<Vec<_>>()
+        .join(" | ");
+
+    if !active_line.is_empty() {
+        println!("ACTIVE: {}", active_line);
+    }
+
+    println!("=== V2 TOP {} (watch band) ===", cfg.top_n_print);
+    if top.is_empty() {
+        println!("(none yet)");
+        return;
+    }
+    for (i, row) in top.into_iter().enumerate() {
+        let sc = score_of(&row);
+        println!(
+            "{:>2}. {:>3} {} {} fdv=${:.0} liq=${:.0} tx5={} age={}s",
+            i + 1,
+            sc,
+            row.symbol.unwrap_or_else(|| "?".to_string()),
+            row.mint,
+            row.fdv.unwrap_or(0.0),
+            row.liq_usd.unwrap_or(0.0),
+            row.tx_5m.unwrap_or(0),
+            row.age_secs.unwrap_or(0)
+        );
+    }
+}
+
+async fn pumpportal_task(cfg: V2Cfg, tx: mpsc::Sender<String>) {
+    if let Err(e) = rustls::crypto::ring::default_provider().install_default() {
+        eprintln!("⚠️ rustls provider install failed (ok): {e:?}");
+    }
+
+    let url = cfg.pumpportal_wss.clone();
+    eprintln!("🟣 pumpportal connecting: {}", url);
+
+    loop {
+        match tokio_tungstenite::connect_async(&url).await {
+            Ok((ws, _)) => {
+                eprintln!("✅ pumpportal connected");
+                let (mut write, mut read) = ws.split();
+
+                let mut sub = json!({ "method": cfg.pumpportal_channel });
+                if !cfg.pumpportal_api_key.trim().is_empty() {
+                    sub["apiKey"] = json!(cfg.pumpportal_api_key);
+                }
+
+                if write
+                    .send(Message::Text(sub.to_string().into()))
+                    .await
+                    .is_err()
+                {
+                    tokio::time::sleep(Duration::from_secs(2)).await;
+                    continue;
+                }
+
+                while let Some(item) = read.next().await {
+                    let msg = match item {
+                        Ok(m) => m,
+                        Err(_) => break,
+                    };
+
+                    let text: String = match msg {
+                        Message::Text(t) => t.to_string(),
+                        Message::Binary(b) => String::from_utf8_lossy(&b).to_string(),
+                        _ => continue,
+                    };
+
+                    let v: serde_json::Value = match serde_json::from_str(&text) {
+                        Ok(v) => v,
+                        Err(_) => continue,
+                    };
+
+                    let mint = v
+                        .get("mint")
+                        .and_then(|x| x.as_str())
+                        .or_else(|| v.get("tokenAddress").and_then(|x| x.as_str()))
+                        .or_else(|| v.get("address").and_then(|x| x.as_str()))
+                        .map(|s| s.trim().to_string())
+                        .filter(|s| !s.is_empty());
+
+                    if let Some(mint) = mint {
+                        if tx.send(mint).await.is_err() {
+                            return;
+                        }
+                    }
+                }
+            }
+            Err(_) => {}
+        }
+
+        tokio::time::sleep(Duration::from_secs(2)).await;
+    }
+}

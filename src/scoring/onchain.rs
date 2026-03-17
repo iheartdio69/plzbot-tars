@@ -1,33 +1,71 @@
-// onchain.rs (new)
 use crate::config::Config;
-use crate::types::{CoinState, Event, WhaleTier};
-use helius::Helius;
-use helius::types::Cluster;
-use solana_sdk::signature::Signature;
+use crate::db::Db;
+use crate::governor::Governor;
+use crate::types::CoinState;
 use std::collections::HashMap;
+use std::sync::Arc;
 
-pub async fn fetch_onchain_events(cfg: &Config, coins: &mut HashMap<String, CoinState>) {
-    let helius = Helius::new(&cfg.helius_api_key, Cluster::MainnetBeta).unwrap();
+/// Fetch onchain events for tracked pair addresses.
+/// - Governed via Governor
+/// - `fetch_address_txs` does the real ingestion (writes DB + updates CoinState.events)
+/// - After ingestion, we "refresh" CoinState.last_activity_ts from DB heartbeat
+/// - Returns newly discovered mints
+pub async fn fetch_onchain_events(
+    cfg: &Config,
+    db: &mut Db,
+    coins: &mut HashMap<String, CoinState>,
+    tracked_pairs: &[String],
+    gov: Arc<Governor>,
+) -> Vec<String> {
+    if tracked_pairs.is_empty() {
+        return Vec::new();
+    }
 
-    for (mint, state) in coins.iter_mut() {
-        let signatures = helius.connection().get_signatures_for_address(mint, None).unwrap_or_default();
-        for sig_info in signatures {
-            let sig = Signature::from_str(&sig_info.signature).unwrap();
-            let tx = helius.connection().get_transaction(&sig.to_string(), None).unwrap_or_default();
+    // 1) Ingest (this is where events/edges get written)
+    let discovered_mints =
+        crate::helius::client::fetch_address_txs(cfg, db, coins, tracked_pairs, gov).await;
 
-            if tx.transaction.message.instructions.iter().any(|i| i.program_id == cfg.pump_fun_program) {
-                // Simplistic parse
-                let wallet = tx.transaction.message.account_keys[0].to_string(); // First signer
-                let sol_delta = tx.meta.pre_balances[0] - tx.meta.post_balances[0]; // Rough SOL proxy (lamports)
-                let sol = sol_delta as f64 / 1_000_000_000.0;
-                let tier = if sol > cfg.blue_sol_tx { WhaleTier::Blue } else if sol > cfg.beluga_sol_tx { WhaleTier::Beluga } else { WhaleTier::None };
-                state.events.push(Event {
-                    wallet,
-                    ts: tx.block_time.unwrap_or(0) as u64,
-                    sol,
-                    tier,
-                });
+    // 2) Refresh per-mint "last activity" for actives/rotator logic
+    // IMPORTANT: last_activity_ts should mean "real onchain activity", not "we polled".
+    // We derive it from DB (events/sigs or snapshots), so it stays consistent.
+    let now_u64: u64 = crate::time::now();
+    let now_ts: i64 = now_u64 as i64;
+
+    // Update activity for:
+    // - any newly discovered mint
+    // - any existing mint whose pair we are tracking this tick
+    //
+    // NOTE: we can't map pair->mint here without extra bookkeeping, so we update only
+    // the discovered mints (most important). If you want perfect updates for *all*
+    // tracked mints, see the note below.
+    for mint in discovered_mints.iter() {
+        // Prefer sig/event-based heartbeat if you have it; otherwise snapshot heartbeat.
+        let mut last_seen: i64 = db
+            .mint_last_seen_ts(mint.as_str())
+            .ok()
+            .flatten()
+            .unwrap_or(0);
+
+        // Optional: if you also track snapshots as heartbeat, take the max.
+        let last_snap: i64 = db
+            .mint_last_seen_ts(mint.as_str())
+            .ok()
+            .flatten()
+            .unwrap_or(0);
+
+        last_seen = last_seen.max(last_snap);
+
+        // clamp bad/future timestamps
+        if last_seen > now_ts {
+            last_seen = now_ts;
+        }
+
+        if last_seen > 0 {
+            if let Some(st) = coins.get_mut(mint) {
+                st.last_activity_ts = last_seen as u64;
             }
         }
     }
+
+    discovered_mints
 }

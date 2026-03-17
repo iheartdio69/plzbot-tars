@@ -1,0 +1,119 @@
+use crate::config::Config;
+use crate::db::Db;
+use crate::helius::types::HeliusTx;
+use crate::helius::utils::{classify_tier, collect_mints, estimate_sol_outflow};
+use crate::types::{CoinState, Event};
+use reqwest::Client;
+use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
+
+use crate::governor::Governor;
+
+pub async fn fetch_address_txs(
+    cfg: &Config,
+    db: &mut Db,
+    coins: &mut HashMap<String, CoinState>,
+    tracked: &[String],
+    gov: Arc<Governor>,
+) -> Vec<String> {
+    if cfg.helius_api_key.trim().is_empty() {
+        return vec![];
+    }
+
+    // Your Config doesn't have helius_api_base / helius_tx_limit, so hardcode for now.
+    let base = "https://api.helius.xyz";
+    let limit: usize = 50;
+
+    let client = Client::new();
+    let mut discovered: HashSet<String> = HashSet::new();
+
+    for addr in tracked {
+        let url = format!(
+            "{}/v0/addresses/{}/transactions?api-key={}&limit={}",
+            base, addr, cfg.helius_api_key, limit
+        );
+
+        // v0/addresses/.../transactions is "Enhanced Transactions" credits
+        gov.acquire_enhanced().await;
+
+        let resp = match client.get(&url).send().await {
+            Ok(r) => r,
+            Err(_) => continue,
+        };
+
+        if !resp.status().is_success() {
+            continue;
+        }
+
+        let txs: Vec<HeliusTx> = match resp.json().await {
+            Ok(v) => v,
+            Err(_) => continue,
+        };
+
+        for tx in txs.iter() {
+            let ts_u64: u64 = tx.timestamp.unwrap_or(0) as u64;
+
+            let actor: String = tx.fee_payer.clone().unwrap_or_else(|| addr.clone());
+
+            let sig = tx.signature.as_deref();
+
+            // Discover mints from token transfers
+            for m in collect_mints(&tx.token_transfers) {
+                discovered.insert(m.clone());
+
+                // best-effort observation
+                let _ = db.insert_wallet_edge(
+                    ts_u64 as i64,
+                    actor.as_str(),
+                    None,
+                    Some(m.as_str()),
+                    "token_transfer",
+                    None,
+                    sig,
+                );
+            }
+
+            for tt in &tx.token_transfers {
+                let mint = tt.mint.as_deref().unwrap_or("").trim();
+                if mint.is_empty() || is_ignored_mint(mint) {
+                    continue;
+                }
+                let from = tt.from_user_account.as_deref().unwrap_or("").trim();
+                let to = tt.to_user_account.as_deref().unwrap_or("").trim();
+                if from.is_empty() || to.is_empty() {
+                    continue;
+                }
+
+                let _ = db.insert_wallet_edge(
+                    ts_u64 as i64,
+                    from,
+                    Some(to),
+                    Some(mint),
+                    "token_transfer",
+                    None,
+                    sig,
+                );
+            }
+
+            // Estimate SOL outflow
+            let native = &tx.native_transfers;
+            let sol_out = estimate_sol_outflow(native, actor.as_str());
+
+            if sol_out > 0.0 {
+                let tier = classify_tier(sol_out, cfg);
+
+                // Attach event to the tracked address state (pair/wallet/etc)
+                if let Some(st) = coins.get_mut(addr) {
+                    st.events.push(Event {
+                        ts: ts_u64,
+                        wallet: actor.clone(),
+                        sol: sol_out,
+                        tier,
+                    });
+                }
+            }
+        }
+    }
+
+    discovered.into_iter().collect()
+}

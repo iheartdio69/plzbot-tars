@@ -1,7 +1,0 @@
-#  [error opening dir]
-update  [error opening dir]
-again  [error opening dir]
-if  [error opening dir]
-needed  [error opening dir]
-
-0 directories, 0 files

@@ -1,0 +1,419 @@
+use super::Counters;
+use crate::config::Config;
+use crate::market::cache::MarketCache;
+use crate::scoring::shadow;
+use crate::types::{CallRecord, CoinState};
+use std::collections::HashMap;
+
+fn is_bonk_like_mint(mint: &str) -> bool {
+    mint.to_ascii_lowercase().contains("bonk")
+}
+
+pub fn process_calls(
+    cfg: &Config,
+    coins: &mut HashMap<String, CoinState>,
+    active: &mut Vec<String>,
+    calls: &mut Vec<CallRecord>,
+    market: &MarketCache,
+    shadow_map: &mut shadow::ShadowMap,
+    db: &mut crate::db::Db,
+    now: u64,
+    now_ts: i64,
+    counters: &mut Counters,
+) -> Vec<String> {
+    let active_snapshot = active.clone();
+    let mut shadowed_after_call: Vec<String> = Vec::new();
+
+    for mint in active_snapshot.iter() {
+        // ------------------------------------------------------------
+        // 0) quick excludes
+        // ------------------------------------------------------------
+        if is_bonk_like_mint(mint) {
+            counters.skip_other += 1;
+            counters.skipped_threshold += 1;
+            continue;
+        }
+
+        let Some(ms) = market.map.get(mint) else {
+            // This is where your "🕳️ no market data yet" comes from.
+            // If we can't price it, we can't FDV-band it, so we don't call it.
+            counters.skip_other += 1;
+            counters.skipped_threshold += 1;
+            continue;
+        };
+
+        let fdv = ms.fdv.unwrap_or(0.0);
+        let tx5: u64 = ms.tx_5m.unwrap_or(0);
+
+        let signers_u: usize = coins.get(mint).map(|s| s.unique_signers_5m).unwrap_or(0);
+        let signers: u64 = signers_u as u64;
+
+        let ev: usize = db.events_5m(now_ts, mint.as_str()).unwrap_or(0) as usize;
+
+        let mut uniq_sigs: u64 = db.uniq_sigs_5m(now_ts, mint.as_str()).unwrap_or(0);
+        if uniq_sigs == 0 && tx5 > 0 {
+            uniq_sigs = (tx5 / 3).max(1);
+        }
+        let signer_strength: u64 = std::cmp::max(signers, uniq_sigs);
+
+        let first_seen: u64 = coins.get(mint).map(|s| s.first_seen).unwrap_or(0);
+        let age_sec: u64 = now.saturating_sub(first_seen);
+
+        // ----------------------------
+        // Gate 1: CALL FDV band (HARD)
+        // ----------------------------
+        // You wanted:
+        // - WATCH: 15k..120k (queue/watch stage)
+        // - CALL:  20k..120k (this stage)
+        //
+        // So: only call if within cfg.min_call_fdv_usd..cfg.max_call_fdv_usd
+        if fdv < cfg.min_call_fdv_usd || fdv > cfg.max_call_fdv_usd {
+            counters.skip_fdv += 1;
+            counters.skipped_threshold += 1;
+            continue;
+        }
+
+        let gambol_ok = (signers == 0) && (tx5 >= 200);
+
+        // ----------------------------
+        // Gate 2: spam guards
+        // ----------------------------
+        if signers == 0 && tx5 < 50 && signer_strength < 8 {
+            counters.skip_signer += 1;
+            counters.skipped_threshold += 1;
+            continue;
+        }
+
+        let tx_spam = tx5 >= 200 && signers == 0 && ev == 0;
+        let low_signal = tx5 >= 80 && signers == 0 && ev == 0;
+        if tx_spam || low_signal {
+            counters.skip_other += 1;
+            counters.skipped_threshold += 1;
+            continue;
+        }
+
+        // ----------------------------
+        // Gate 3: wallet gate (use cached wallet_delta)
+        // ----------------------------
+        let wallet_delta = coins.get(mint).map(|s| s.wallet_delta).unwrap_or(0);
+        if wallet_delta < -10 {
+            counters.skip_wallet += 1;
+            counters.skipped_threshold += 1;
+            continue;
+        }
+
+        // ----------------------------
+        // Gate 4: onchain signal
+        // ----------------------------
+        let onchain_ok = (signers > 0) || (ev > 0) || (signer_strength >= 12);
+        if !onchain_ok && !gambol_ok {
+            counters.skip_other += 1;
+            counters.skipped_threshold += 1;
+            continue;
+        }
+
+        // ----------------------------
+        // Gate 5: age (HARD stale cutoff)
+        // ----------------------------
+        // You asked: avoid coins older than 2 days.
+        // That belongs here (call stage), but watch/queue also filters stale.
+        //
+        // Allow "revival" only if you *want* it; right now we keep your
+        // revival idea but still do NOT allow >2 days.
+        let revival_ok = age_sec > (2 * 60 * 60) && signer_strength >= 25;
+        if age_sec > cfg.discovery_max_age_secs {
+            counters.skip_other += 1;
+            counters.skipped_threshold += 1;
+            continue;
+        }
+
+        // Keep your earlier short-age gate (2h) ONLY as a soft filter:
+        // (This avoids calling ancient stuff even if max_coin_age_secs is huge)
+        let max_age_sec_soft: u64 = 2 * 60 * 60;
+        if age_sec > max_age_sec_soft && !revival_ok {
+            counters.skip_other += 1;
+            counters.skipped_threshold += 1;
+            continue;
+        }
+
+        if !gambol_ok && signer_strength < 10 {
+            counters.skip_signer += 1;
+            counters.skipped_threshold += 1;
+            continue;
+        }
+
+        // ----------------------------
+        // Gate 6: cooldown
+        // ----------------------------
+        let cooldown_secs: i64 = 15 * 60;
+        if let Ok(Some(last_ts)) = db.last_call_ts_for_mint(mint.as_str()) {
+            if now_ts - last_ts < cooldown_secs {
+                counters.skipped_cooldown += 1;
+                counters.skip_cooldown += 1;
+                continue;
+            }
+        }
+
+        // ----------------------------
+        // Gate 7: concentration PRE-CALL (and set flag for visibility)
+        // ----------------------------
+        let call_ts = now_ts;
+        let start_ts = call_ts - 300;
+        let end_ts = call_ts;
+
+        let mut conc_risk = false;
+
+        let mut conc_total_edges: i64 = 0;
+        let mut conc_top1_edges: i64 = 0;
+        let mut conc_top5_edges: i64 = 0;
+        let mut conc_top1_pct: f64 = 0.0;
+        let mut conc_top5_pct: f64 = 0.0;
+        let mut conc_top1_wallet: String = String::new();
+
+        if let Ok(top) = db.top_wallets_for_mint_window(mint, start_ts, end_ts, 25) {
+            conc_total_edges = db
+                .total_edges_for_mint_window(mint, start_ts, end_ts)
+                .unwrap_or(0);
+
+            if conc_total_edges > 0 {
+                conc_top1_edges = top.get(0).map(|(_, e)| *e).unwrap_or(0);
+                conc_top5_edges = top.iter().take(5).map(|(_, e)| *e).sum();
+
+                conc_top1_pct = conc_top1_edges as f64 / conc_total_edges as f64;
+                conc_top5_pct = conc_top5_edges as f64 / conc_total_edges as f64;
+
+                conc_top1_wallet = top
+                    .get(0)
+                    .map(|(w, _)| w.clone())
+                    .unwrap_or_else(|| "".to_string());
+
+                // only enforce conc once we have enough edges to matter
+                let conc_enough_sample = conc_total_edges >= 80;
+
+                // looser thresholds (Pump reality)
+                // only enforce conc once we have enough edges to matter
+                let conc_enough_sample = conc_total_edges >= 80;
+                // looser thresholds (Pump reality)
+                conc_risk = conc_enough_sample && (conc_top1_pct >= 0.35 || conc_top5_pct >= 0.75);
+            }
+        }
+
+        if conc_risk {
+            if let Some(st) = coins.get_mut(mint) {
+                st.skip_call_for_conc = true;
+            }
+
+            eprintln!(
+                "DBG SKIP_CONC mint={mint} total_edges={tot} top1_edges={t1e} top5_edges={t5e} top1_pct={t1p:.3} top5_pct={t5p:.3} top1_wallet={t1w}",
+                mint = mint.as_str(),
+                tot = conc_total_edges,
+                t1e = conc_top1_edges,
+                t5e = conc_top5_edges,
+                t1p = conc_top1_pct,
+                t5p = conc_top5_pct,
+                t1w = conc_top1_wallet,
+            );
+
+            counters.skip_conc += 1;
+            counters.skipped_threshold += 1;
+            continue;
+        }
+
+        // --- wallet quality gate (top wallets in last 5m window) ---
+        let mut ge10_cnt: i64 = 0;
+        let mut veto_bad_min: bool = false;
+
+        if let Ok(top) = db.top_wallets_for_mint_window(mint, start_ts, end_ts, 25) {
+            for (w, _edges) in top.iter().take(10) {
+                let sc = db.wallet_score(w).unwrap_or(0);
+                if sc >= 10 {
+                    ge10_cnt += 1;
+                }
+            }
+
+            if let Some((w0, _)) = top.get(0) {
+                let sc0 = db.wallet_score(w0).unwrap_or(0);
+                veto_bad_min = sc0 <= -50;
+            }
+        }
+
+        if veto_bad_min {
+            counters.skip_wallet += 1;
+            counters.skipped_threshold += 1;
+            continue;
+        }
+
+        if ge10_cnt < 2 {
+            counters.skip_wallet += 1;
+            counters.skipped_threshold += 1;
+            continue;
+        }
+
+        // ----------------------------
+        // ACCEPT CALL
+        // ----------------------------
+        let base_score = coins.get(mint).map(|s| s.score).unwrap_or(0);
+        let effective_score = base_score + wallet_delta;
+
+        // --- DEBUG: why we called it ---
+        eprintln!(
+            "DBG CALL_REASON mint={mint} fdv={fdv:.0} score={score} tx5={tx5} signers={signers} ev={ev} wallet_delta={wallet_delta} revive={revive} gambol={gambol} conc={conc} conc_total={tot} conc_top1={t1e} conc_top5={t5e} conc_top1_pct={t1p:.3} conc_top5_pct={t5p:.3}",
+            mint = mint.as_str(),
+            fdv = fdv,
+            score = effective_score,
+            tx5 = tx5,
+            signers = signers,
+            ev = ev,
+            wallet_delta = wallet_delta,
+            revive = revival_ok,
+            gambol = gambol_ok,
+            conc = conc_risk,
+            tot = conc_total_edges,
+            t1e = conc_top1_edges,
+            t5e = conc_top5_edges,
+            t1p = conc_top1_pct,
+            t5p = conc_top5_pct,
+        );
+
+        let top1_wallet_score: i64 = if !conc_top1_wallet.is_empty() {
+            db.wallet_score(&conc_top1_wallet).unwrap_or(0)
+        } else {
+            0
+        };
+
+        let veto_bad_top1 = top1_wallet_score <= -50 && conc_top1_pct >= 0.18;
+        if veto_bad_top1 {
+            counters.skip_wallet += 1;
+            counters.skipped_threshold += 1;
+            continue;
+        }
+
+        calls.push(CallRecord {
+            mint: mint.clone(),
+            ts: now,
+            score: effective_score,
+        });
+        counters.called += 1;
+
+        let term_line = if gambol_ok {
+            crate::fmt::red(&crate::fmt::call_line(
+                mint.as_str(),
+                fdv,
+                effective_score,
+                tx5,
+                signers as usize,
+                ev,
+            ))
+        } else {
+            crate::fmt::call_line(
+                mint.as_str(),
+                fdv,
+                effective_score,
+                tx5,
+                signers as usize,
+                ev,
+            )
+        };
+        println!("{}", term_line);
+        println!(
+            "   🕒 local={}",
+            chrono::Local::now().format("%-I:%M:%S %p")
+        );
+
+        let mut tags: Vec<&str> = Vec::new();
+        if gambol_ok {
+            tags.push("GAMBOL");
+        }
+        if revival_ok {
+            tags.push("REVIVE");
+        }
+        if wallet_delta > 0 {
+            tags.push("WPLUS");
+        }
+
+        let tag_str = tags.join("|");
+        let tag_opt = if tag_str.is_empty() {
+            None
+        } else {
+            Some(tag_str.as_str())
+        };
+
+        let top1_is_whale = if !conc_top1_wallet.is_empty() {
+            db.watchlist_has_wallet(&conc_top1_wallet).unwrap_or(false)
+        } else {
+            false
+        };
+
+        if let Err(e) = db.insert_call(
+            call_ts,
+            mint,
+            fdv,
+            effective_score,
+            tx5,
+            signers,
+            ev,
+            tag_opt,
+        ) {
+            eprintln!(
+                "DBG db insert_call failed mint={} err={:?}",
+                crate::fmt::mint(mint),
+                e
+            );
+            continue;
+        }
+
+        let _ = db.insert_call_debug(
+            call_ts,
+            mint.as_str(),
+            fdv,
+            effective_score,
+            tx5,
+            signers,
+            ev,
+            signer_strength,
+            age_sec,
+            wallet_delta,
+            conc_total_edges,
+            conc_top1_edges,
+            conc_top5_edges,
+            conc_top1_pct,
+            conc_top5_pct,
+            conc_top1_wallet.as_str(),
+            top1_wallet_score,
+            top1_is_whale,
+            ge10_cnt,
+            veto_bad_top1,
+            revival_ok,
+            gambol_ok,
+            conc_risk,
+        );
+
+        let first_seen: u64 = coins.get(mint).map(|s| s.first_seen).unwrap_or(0);
+        let _ = db.insert_snapshot(
+            call_ts,
+            mint,
+            Some(fdv),
+            ms.tx_5m,
+            effective_score,
+            signers,
+            ev,
+            first_seen,
+            true,
+            true,
+        );
+
+        let log = format!(
+            "{},{},{:.0},{},{},{}",
+            call_ts, mint, fdv, effective_score, tx5, signers
+        );
+        crate::call_log::append_call_line(&log);
+
+        shadow::shadow_for(shadow_map, mint.as_str(), now, 180);
+        shadowed_after_call.push(mint.clone());
+        if let Some(st) = coins.get_mut(mint) {
+            st.active = false;
+        }
+    }
+
+    shadowed_after_call
+}

@@ -5,3 +5,6 @@ pub fn now() -> u64 {
         .unwrap_or_default()
         .as_secs()
 }
+pub fn now_ts() -> i64 {
+    now() as i64
+}

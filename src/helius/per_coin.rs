@@ -1,0 +1,288 @@
+// src/helius/per_coin.rs
+
+use crate::config::Config;
+use crate::db::Db;
+use crate::governor::Governor;
+use crate::helius::ingest::{
+    classify_tier, estimate_sol_mag, is_ignored_mint, tx_signers, HeliusTx,
+};
+use crate::market::cache::MarketCache;
+use crate::types::{CoinState, Event};
+use anyhow::Result;
+use reqwest::Client;
+use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
+use std::time::Duration;
+
+/// Backwards-compatible wrapper:
+/// - keeps your old call sites compiling
+/// - only ingests `active` (no queue/hot expansion)
+pub async fn ingest_pairs_for_active(
+    cfg: &Config,
+    db: &mut Db,
+    coins: &mut HashMap<String, CoinState>,
+    active: &[String],
+    gov: Arc<Governor>,
+) -> anyhow::Result<()> {
+    let empty_queue: Vec<String> = Vec::new();
+
+    // throttle BEFORE making any Helius requests
+    gov.acquire_enhanced().await;
+
+    // rest of your function continues here…
+    // top_n_hot=0 => no hot expansion
+    // market is not available in the old signature, so we pass a dummy ref by requiring the new
+    // call sites to use `ingest_pairs_for_targets` for hot expansion.
+    //
+    // We implement this by calling the internal worker with `market_opt=None`.
+    ingest_pairs_for_targets_inner(cfg, db, coins, active, &empty_queue, 0, None).await
+}
+
+/// New function:
+/// For each mint in (active + queue + top_N_hot), pull txs for that mint's `pair_address`
+/// and attach events ONLY to that mint. This is what makes signers_5m non-zero.
+pub async fn ingest_pairs_for_targets(
+    cfg: &Config,
+    db: &mut crate::db::Db,
+    coins: &mut HashMap<String, CoinState>,
+    active: &[String],
+    queue: &[String],
+    top_n_hot: usize,
+    market: &MarketCache,
+) -> Result<()> {
+    ingest_pairs_for_targets_inner(cfg, db, coins, active, queue, top_n_hot, Some(market)).await
+}
+
+/// Internal worker so we can keep a backwards-compatible wrapper without requiring MarketCache.
+async fn ingest_pairs_for_targets_inner(
+    cfg: &Config,
+    db: &mut crate::db::Db,
+    coins: &mut HashMap<String, CoinState>,
+    active: &[String],
+    queue: &[String],
+    top_n_hot: usize,
+    market_opt: Option<&MarketCache>,
+) -> Result<()> {
+    if cfg.helius_api_key.trim().is_empty() {
+        eprintln!("DBG per_coin ingest: HELIUS_API_KEY empty -> skipping");
+        return Ok(());
+    }
+
+    let client = Client::new();
+
+    // Normalize base exactly like ingest.rs:
+    // Accepts either:
+    //   https://api.helius.xyz
+    //   https://api.helius.xyz/v0/addresses
+    let raw = cfg.helius_addr_url.trim_end_matches('/');
+    let base = if raw.ends_with("/v0/addresses") {
+        raw.to_string()
+    } else {
+        format!("{}/v0/addresses", raw)
+    };
+
+    // Build target list: active + queue + (optional) hot mints by tx_5m
+    let mut targets: Vec<String> = Vec::new();
+    let mut seen: HashSet<String> = HashSet::new();
+
+    let mut push_unique = |m: &str| {
+        let m = m.trim();
+        if m.is_empty() {
+            return;
+        }
+        if seen.insert(m.to_string()) {
+            targets.push(m.to_string());
+        }
+    };
+
+    for m in active {
+        push_unique(m);
+    }
+    for m in queue {
+        push_unique(m);
+    }
+
+    if top_n_hot > 0 {
+        if let Some(market) = market_opt {
+            let mut hot: Vec<(&String, i64)> = market
+                .map
+                .iter()
+                .map(|(mint, ms)| (mint, ms.tx_5m.unwrap_or(0) as i64))
+                .collect();
+            hot.sort_by(|a, b| b.1.cmp(&a.1)); // desc
+            for (mint, _tx) in hot.into_iter().take(top_n_hot) {
+                push_unique(mint);
+            }
+        }
+    }
+
+    eprintln!(
+        "DBG per_coin ingest: base={} api_key_len={} targets={} active={} queue={} top_n_hot={}",
+        base,
+        cfg.helius_api_key.trim().len(),
+        targets.len(),
+        active.len(),
+        queue.len(),
+        top_n_hot
+    );
+
+    for mint in targets.iter() {
+        // read pair_address first (avoid borrow conflicts)
+        let pair_opt = coins.get(mint).and_then(|st| st.pair_address.clone());
+        let Some(pair) = pair_opt else {
+            // no pair yet => can't ingest per-coin transactions
+            continue;
+        };
+
+        let pair = pair.trim().to_string();
+        if pair.is_empty() {
+            continue;
+        }
+
+        let url = format!(
+            "{}/{}/transactions?api-key={}&limit={}",
+            base,
+            pair,
+            cfg.helius_api_key.trim(),
+            cfg.fetch_limit
+        );
+
+        let resp = match client.get(&url).send().await {
+            Ok(r) => r,
+            Err(e) => {
+                eprintln!(
+                    "DBG per_coin ingest: request error mint={} pair={} err={}",
+                    mint, pair, e
+                );
+                // small backoff
+                tokio::time::sleep(Duration::from_millis(80)).await;
+                continue;
+            }
+        };
+
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let body = resp.text().await.unwrap_or_default();
+            eprintln!(
+                "DBG per_coin ingest: non-200 mint={} pair={} status={} body_snip={}",
+                mint,
+                pair,
+                status,
+                body.chars().take(180).collect::<String>()
+            );
+            tokio::time::sleep(Duration::from_millis(80)).await;
+            continue;
+        }
+
+        let txs: Vec<HeliusTx> = match resp.json().await {
+            Ok(j) => j,
+            Err(e) => {
+                eprintln!(
+                    "DBG per_coin ingest: json parse error mint={} pair={} err={}",
+                    mint, pair, e
+                );
+                tokio::time::sleep(Duration::from_millis(80)).await;
+                continue;
+            }
+        };
+
+        if txs.is_empty() {
+            tokio::time::sleep(Duration::from_millis(40)).await;
+            continue;
+        }
+
+        // mut borrow after reads
+        let st_mut = match coins.get_mut(mint) {
+            Some(s) => s,
+            None => {
+                tokio::time::sleep(Duration::from_millis(40)).await;
+                continue;
+            }
+        };
+
+        for tx in txs {
+            if tx.transaction_error.is_some() {
+                continue;
+            }
+
+            let sig = match tx.signature.as_deref() {
+                Some(s) if !s.is_empty() => s,
+                _ => continue,
+            };
+
+            let ts = tx.timestamp.unwrap_or(0);
+            if ts == 0 {
+                continue;
+            }
+
+            // dedupe
+            if db.seen_sig(sig)? {
+                continue;
+            }
+            db.mark_sig(ts as i64, sig)?;
+
+            // fee_payer fallback; using pair as a stable identifier if missing
+            let fee_payer = tx.fee_payer.clone().unwrap_or_else(|| pair.clone());
+            let sol_mag = estimate_sol_mag(&tx.native_transfers, &fee_payer);
+            let tier = classify_tier(sol_mag, cfg);
+            let signers = tx_signers(&tx, &fee_payer);
+
+            // attach events to this mint only
+            for wallet in signers.iter() {
+                st_mut.events.push(Event {
+                    wallet: wallet.clone(),
+                    ts,
+                    sol: sol_mag,
+                    tier,
+                });
+            }
+
+            // persist edges -> used by db.signers_5m()
+            if !is_ignored_mint(mint) {
+                for tt in &tx.token_transfers {
+                    let tm = tt.mint.as_str().trim();
+                    if tm.is_empty() || is_ignored_mint(tm) {
+                        continue;
+                    }
+                    let from = tt.from_user_account.as_deref().unwrap_or("").trim();
+                    let to = tt.to_user_account.as_deref().unwrap_or("").trim();
+                    if from.is_empty() || to.is_empty() {
+                        continue;
+                    }
+                    let _ = db.insert_wallet_edge(
+                        ts as i64,
+                        from,
+                        Some(to),
+                        Some(tm),
+                        "token_transfer",
+                        None,
+                        Some(sig),
+                    );
+                }
+                for wallet in signers.iter() {
+                    let _ = db.insert_wallet_edge(
+                        ts as i64,
+                        wallet,
+                        None,
+                        Some(mint.as_str()),
+                        "pair_tx",
+                        Some(sol_mag),
+                        Some(sig),
+                    );
+                }
+            }
+        }
+
+        // keep bounded
+        let keep_since = crate::time::now().saturating_sub(1200);
+        st_mut.events.retain(|e| e.ts >= keep_since);
+        if st_mut.events.len() > 50_000 {
+            st_mut.events.drain(0..10_000);
+        }
+
+        // throttle to reduce Helius flakiness / rate-limits
+        tokio::time::sleep(Duration::from_millis(80)).await;
+    }
+
+    Ok(())
+}

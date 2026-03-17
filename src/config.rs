@@ -2,14 +2,16 @@ use std::env;
 
 #[derive(Debug, Clone)]
 pub struct Config {
+    // PumpPortal
     pub pumpportal_enabled: bool,
     pub pumpportal_wss: String,
     pub pumpportal_api_key: String,
     pub pumpportal_channel: String,
+
     // Core loop
     pub main_loop_sleep: u64,
 
-    // Discovery
+    // Discovery tuning
     pub market_discovery_enabled: bool,
     pub market_discovery_every_secs: u64,
     pub market_discovery_top_n: usize,
@@ -18,7 +20,7 @@ pub struct Config {
     pub discovery_min_tx_5m: u64,
     pub discovery_max_age_secs: u64,
 
-    // Scoring / activity
+    // Active / scoring tuning
     pub min_watch_fdv_usd: f64,
     pub max_watch_fdv_usd: f64,
     pub min_liq_usd: f64,
@@ -29,20 +31,26 @@ pub struct Config {
     pub demote_streak: u32,
     pub max_active_coins: usize,
 
-    // Calls
+    // Call gate
     pub min_call_fdv_usd: f64,
     pub max_call_fdv_usd: f64,
 
-    // Whale tiers (SOL-sized tx thresholds)
-    pub blue_sol_tx: f64,
+    // Whale tiers
     pub beluga_sol_tx: f64,
+    pub blue_sol_tx: f64,
 
-    // APIs
+    // Helius
     pub helius_api_key: String,
-    pub helius_rpc_url: String,
-    pub sqlite_path: String,
     pub helius_addr_url: String,
+    pub helius_rpc_url: String,
     pub fetch_limit: usize,
+    pub helius_wallets: String,
+
+    // QUEUE
+    pub queue_score_min: i32,
+
+    // DB
+    pub sqlite_path: String,
 
     // Discovery queries
     pub market_discovery_queries: Vec<String>,
@@ -50,14 +58,9 @@ pub struct Config {
 
 pub fn load_config() -> Config {
     dotenvy::dotenv().ok();
-    eprintln!("DBG cfg DISCOVERY_MAX_AGE_SECS={} DISCOVERY_MIN_FDV_USD={} DISCOVERY_MIN_LIQ_USD={} DISCOVERY_MIN_TX_5M={}",
-        env_u64("DISCOVERY_MAX_AGE_SECS", 86400),
-        env_f64("DISCOVERY_MIN_FDV_USD", 5000.0),
-        env_f64("DISCOVERY_MIN_LIQ_USD", 5000.0),
-        env_u64("DISCOVERY_MIN_TX_5M", 3)
-    );
 
     Config {
+        // PumpPortal
         pumpportal_enabled: env_bool("PUMPPORTAL_ENABLED", true),
         pumpportal_wss: env_str("PUMPPORTAL_WSS", "wss://pumpportal.fun/api/data"),
         pumpportal_api_key: env_str("PUMPPORTAL_API_KEY", ""),
@@ -71,11 +74,11 @@ pub fn load_config() -> Config {
         market_discovery_every_secs: env_u64("MARKET_DISCOVERY_EVERY_SECS", 15),
         market_discovery_top_n: env_usize("MARKET_DISCOVERY_TOP_N", 50),
         discovery_min_fdv_usd: env_f64("DISCOVERY_MIN_FDV_USD", 5_000.0),
-        discovery_min_liq_usd: env_f64("DISCOVERY_MIN_LIQ_USD", 5_000.0),
-        discovery_min_tx_5m: env_u64("DISCOVERY_MIN_TX_5M", 3),
+        discovery_min_liq_usd: env_f64("DISCOVERY_MIN_LIQ_USD", 0.0),
+        discovery_min_tx_5m: env_u64("DISCOVERY_MIN_TX_5M", 0),
         discovery_max_age_secs: env_u64("DISCOVERY_MAX_AGE_SECS", 86_400),
 
-        // Scoring
+        // Active / scoring
         min_watch_fdv_usd: env_f64("MIN_WATCH_FDV_USD", 10_000.0),
         max_watch_fdv_usd: env_f64("MAX_WATCH_FDV_USD", 2_000_000.0),
         min_liq_usd: env_f64("MIN_LIQ_USD", 8_000.0),
@@ -84,22 +87,28 @@ pub fn load_config() -> Config {
         score_target: env_i32("SCORE_TARGET", 40),
         score_demote: env_i32("SCORE_DEMOTE", -10),
         demote_streak: env_u32("DEMOTE_STREAK", 3),
-        max_active_coins: env_usize("MAX_ACTIVE_COINS", 5),
+        max_active_coins: env_usize("MAX_ACTIVE_COINS", 30),
 
-        // Calls
-        min_call_fdv_usd: env_f64("MIN_CALL_FDV_USD", 20_000.0),
-        max_call_fdv_usd: env_f64("MAX_CALL_FDV_USD", 500_000.0),
+        // Call gate
+        min_call_fdv_usd: env_f64("MIN_CALL_FDV_USD", 15_000.0),
+        max_call_fdv_usd: env_f64("MAX_CALL_FDV_USD", 55_000.0),
 
-        // Whale tiers (defaults: tune later)
-        blue_sol_tx: env_f64("BLUE_SOL_TX", 25.0),
-        beluga_sol_tx: env_f64("BELUGA_SOL_TX", 80.0),
+        // Whale tiers (Blue > Beluga)
+        beluga_sol_tx: env_f64("BELUGA_SOL_TX", 2.0),
+        blue_sol_tx: env_f64("BLUE_SOL_TX", 5.0),
 
-        // APIs
+        // Helius
         helius_api_key: env_str("HELIUS_API_KEY", ""),
-        sqlite_path: env_str("SQLITE_PATH", "solana_meme.sqlite"),
-        helius_rpc_url: env_str("HELIUS_RPC_URL", "https://mainnet.helius-rpc.com/?api-key="),
-        helius_addr_url: env_str("HELIUS_ADDR_URL", "https://api.helius.xyz/v0/addresses"),
+        helius_addr_url: env_str("HELIUS_ADDR_URL", "https://api.helius.xyz"),
+        helius_rpc_url: env_str("HELIUS_RPC_URL", ""),
         fetch_limit: env_usize("FETCH_LIMIT", 50),
+        helius_wallets: env_str("HELIUS_WALLETS", ""),
+
+        // QUEUE
+        queue_score_min: env_i32("QUEUE_SCORE_MIN", 20),
+
+        // DB
+        sqlite_path: env_str("SQLITE_PATH", "data/solana_meme.sqlite"),
 
         // Queries
         market_discovery_queries: env_list(
@@ -113,6 +122,13 @@ pub fn load_config() -> Config {
 
 fn env_str(name: &str, default: &str) -> String {
     env::var(name).unwrap_or_else(|_| default.to_string())
+}
+
+fn env_bool(name: &str, default: bool) -> bool {
+    env::var(name)
+        .ok()
+        .map(|v| matches!(v.to_lowercase().as_str(), "1" | "true" | "yes" | "y" | "on"))
+        .unwrap_or(default)
 }
 
 fn env_u64(name: &str, default: u64) -> u64 {
@@ -129,14 +145,14 @@ fn env_u32(name: &str, default: u32) -> u32 {
         .unwrap_or(default)
 }
 
-fn env_i32(name: &str, default: i32) -> i32 {
+fn env_usize(name: &str, default: usize) -> usize {
     env::var(name)
         .ok()
         .and_then(|v| v.parse().ok())
         .unwrap_or(default)
 }
 
-fn env_usize(name: &str, default: usize) -> usize {
+fn env_i32(name: &str, default: i32) -> i32 {
     env::var(name)
         .ok()
         .and_then(|v| v.parse().ok())
@@ -150,21 +166,13 @@ fn env_f64(name: &str, default: f64) -> f64 {
         .unwrap_or(default)
 }
 
-fn env_bool(name: &str, default: bool) -> bool {
-    env::var(name)
-        .ok()
-        .and_then(|v| v.parse().ok())
-        .unwrap_or(default)
-}
-
 fn env_list(name: &str, default: Vec<String>) -> Vec<String> {
-    env::var(name)
-        .ok()
-        .map(|v| {
-            v.split(',')
-                .map(|s| s.trim().to_string())
-                .filter(|s| !s.is_empty())
-                .collect()
-        })
-        .unwrap_or(default)
+    let v = env::var(name).unwrap_or_default();
+    if v.trim().is_empty() {
+        return default;
+    }
+    v.split(',')
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect()
 }

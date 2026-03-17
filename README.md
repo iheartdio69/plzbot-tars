@@ -2,6 +2,14 @@
 
 Monitor the Solana blockchain for new pump.fun meme coins in real-time using Rust! This tool listens to on-chain events and alerts you whenever a new meme token appears, helping you stay ahead in the crypto space.
 
+
+GOLD STAR
+42qt37K9QRkcHGG4Q6mcuMzmubfhXbwahgXCx6A4pump
+
+set -a; source .env; set +a
+echo "$SQLITE_PATH"
+
+
 Copy Wallet Public Key
 7rwzEfnRUWqHMdVDRMnDcBFwocBRkEA6yyZTdEkRiXBK
 

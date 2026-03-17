@@ -59,10 +59,7 @@ struct DexSearchResponse {
 /// Raw Dexscreener search
 async fn search_pairs(q: &str) -> Result<Vec<DexPair>, String> {
     let q_enc = urlencoding::encode(q);
-    let url = format!(
-        "https://api.dexscreener.com/latest/dex/search/?q={}",
-        q_enc
-    );
+    let url = format!("https://api.dexscreener.com/latest/dex/search/?q={}", q_enc);
 
     let client = Client::new();
     let res = client
@@ -122,9 +119,8 @@ pub async fn fetch_dexscreener_snap(mint: &str) -> Option<DexPair> {
     candidates.sort_by(|a, b| {
         let la = a.liquidity.as_ref().and_then(|l| l.usd).unwrap_or(0.0);
         let lb = b.liquidity.as_ref().and_then(|l| l.usd).unwrap_or(0.0);
-        lb.partial_cmp(&la)
-            .unwrap_or(std::cmp::Ordering::Equal)
+        lb.partial_cmp(&la).unwrap_or(std::cmp::Ordering::Equal)
     });
 
-    candidates.into_iter().next()
+    candidates.first().cloned()
 }

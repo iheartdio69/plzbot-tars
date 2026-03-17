@@ -1,19 +1,30 @@
+// src/pumpportal/client.rs
 use crate::config::Config;
+use crate::governor::Governor;
 use futures_util::{SinkExt, StreamExt};
 use serde_json::json;
+use std::sync::Arc;
 use tokio::sync::mpsc;
 use tokio_tungstenite::tungstenite::Message;
 
-pub async fn run(cfg: Config, tx: mpsc::Sender<String>) {
+pub async fn run(cfg: Config, tx: mpsc::Sender<String>, gov: Arc<Governor>) {
+    // PumpPortal websocket traffic is NOT Helius credits, but we keep `gov`
+    // in the signature so the whole app wiring stays consistent.
+    let _ = gov;
+
     // rustls 0.23 requires selecting a crypto provider explicitly
-    let _ = rustls::crypto::ring::default_provider().install_default();
+    // (safe to call multiple times; we just ignore failure)
+    if let Err(e) = rustls::crypto::ring::default_provider().install_default() {
+        eprintln!("⚠️ rustls crypto provider install failed (ok to ignore): {e:?}");
+    }
 
     if !cfg.pumpportal_enabled {
+        eprintln!("🟣 pumpportal disabled (pumpportal_enabled=false)");
         return;
     }
 
     let url = cfg.pumpportal_wss.clone();
-    eprintln!("🧪 pumpportal connecting: {}", url);
+    eprintln!("🟣 pumpportal connecting: {}", url);
 
     loop {
         match tokio_tungstenite::connect_async(&url).await {
@@ -22,14 +33,14 @@ pub async fn run(cfg: Config, tx: mpsc::Sender<String>) {
 
                 let (mut write, mut read) = ws.split();
 
-                // subscription payload
-                // channel default: subscribeNewToken
+                // Subscription payload
+                // Typical channel: "subscribeNewToken" (whatever your cfg uses)
                 let mut sub = json!({
                     "method": cfg.pumpportal_channel,
                 });
 
-                // optional api key support (some services ignore it)
-                if !cfg.pumpportal_api_key.is_empty() {
+                // Optional api key support (some services ignore it)
+                if !cfg.pumpportal_api_key.trim().is_empty() {
                     sub["apiKey"] = json!(cfg.pumpportal_api_key);
                 }
 
@@ -39,6 +50,7 @@ pub async fn run(cfg: Config, tx: mpsc::Sender<String>) {
                     continue;
                 }
 
+                // Read loop
                 while let Some(item) = read.next().await {
                     let msg = match item {
                         Ok(m) => m,
@@ -59,18 +71,25 @@ pub async fn run(cfg: Config, tx: mpsc::Sender<String>) {
                         Err(_) => continue,
                     };
 
-                    // common shapes: { "mint": "..." } or { "tokenAddress": "..." } etc
+                    // Common shapes: { "mint": "..." } or { "tokenAddress": "..." } or { "address": "..." }
                     let mint = v
                         .get("mint")
                         .and_then(|x| x.as_str())
                         .or_else(|| v.get("tokenAddress").and_then(|x| x.as_str()))
                         .or_else(|| v.get("address").and_then(|x| x.as_str()))
-                        .map(|s| s.to_string());
+                        .map(|s| s.trim().to_string())
+                        .filter(|s| !s.is_empty());
 
                     if let Some(mint) = mint {
-                        let _ = tx.send(mint).await;
+                        // Best-effort send; if receiver is dropped, just stop the task.
+                        if tx.send(mint).await.is_err() {
+                            eprintln!("🟣 pumpportal receiver dropped; stopping task");
+                            return;
+                        }
                     }
                 }
+
+                eprintln!("🟣 pumpportal disconnected; reconnecting…");
             }
             Err(e) => {
                 eprintln!("❌ pumpportal connect failed: {}", e);
