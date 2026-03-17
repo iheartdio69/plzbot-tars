@@ -8,7 +8,7 @@ pub fn evaluate_call_outcomes(db: &mut Db, _market: &MarketCache, now_ts: i64) -
     // settings (tune later)
     let outcome_delay_sec: i64 = 60 * 20; // wait 20m before grading
     let peak_window_sec: i64 = 60 * 60; // look 60m after call
-    let win_mult: f64 = 1.4; // win if peak >= call_fdv * 1.8
+    let win_mult: f64 = 1.4; // win if peak >= call_fdv * 1.4
     let give_up_sec: i64 = 60 * 60 * 6; // give up 6h after call if no snapshot data
 
     // only grade calls older than delay
