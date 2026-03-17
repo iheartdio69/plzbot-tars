@@ -62,8 +62,8 @@ pub fn rotate_least_active(
     // tunables
     let k: usize = 3;
     let min_dwell: u64 = 45;
-    let idle_sec: u64 = 30;
-    let max_dwell: u64 = 8 * 60;
+    let idle_sec: u64 = 20;
+    let max_dwell: u64 = 3 * 60;
     let rotate_shadow_secs: u64 = 45;
 
     if active.is_empty() {

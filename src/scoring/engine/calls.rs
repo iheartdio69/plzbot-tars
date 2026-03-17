@@ -160,6 +160,7 @@ pub fn process_calls(
     now: u64,
     now_ts: i64,
     counters: &mut Counters,
+    tg_tx: &tokio::sync::mpsc::Sender<String>,
 ) -> Vec<String> {
     // ----------------------------
     // Tunables
@@ -1138,6 +1139,12 @@ pub fn process_calls(
             tag_owned,
             chrono::Local::now().format("%-I:%M:%S %p")
         );
+
+        let tg_msg = format!(
+            "🎯 <b>INTERFECTOR</b>\nMint: <code>{}</code>\nLane: {}\nFDV: ${:.0}\nScore: {} | TX: {} | Signers: {}\n🔗 https://axiom.trade/t/{}",
+            mint, lane_tag, fdv, effective_score, tx5, signers, mint
+        );
+        let _ = tg_tx.try_send(tg_msg);
 
         // Insert call
         if let Err(e) = db.insert_call(

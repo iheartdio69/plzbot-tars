@@ -31,6 +31,7 @@ pub fn score_and_manage(
     market: &MarketCache,
     shadow_map: &mut shadow::ShadowMap,
     db: &mut Db,
+    tg_tx: &tokio::sync::mpsc::Sender<String>,
 ) {
     let now = crate::time::now();
     let now_ts = now as i64;
@@ -88,6 +89,7 @@ pub fn score_and_manage(
         now,
         now_ts,
         &mut counters,
+        tg_tx,
     );
 
     // 7) remove shadowed mints from active

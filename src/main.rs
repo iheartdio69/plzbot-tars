@@ -14,6 +14,7 @@ mod printing;
 mod pumpportal;
 mod resolver;
 mod scoring;
+mod telegram;
 mod time;
 mod types;
 
@@ -85,6 +86,8 @@ async fn main() {
     let mut discovered: VecDeque<String> = VecDeque::new();
     let mut discovery = MarketDiscovery::default();
     let mut shadow = scoring::shadow::ShadowMap::new();
+
+    let (tg_tx, mut tg_rx) = tokio::sync::mpsc::channel::<String>(100);
 
     // -------------------------
     // DB (one canonical open)
@@ -305,7 +308,16 @@ async fn main() {
                         &market,
                         &mut shadow,
                         &mut db,
+                        &tg_tx,
                     );
+
+                    while let Ok(msg) = tg_rx.try_recv() {
+                        let token = cfg.telegram_bot_token.clone();
+                        let chat_id = cfg.telegram_chat_id.clone();
+                        tokio::spawn(async move {
+                            telegram::send_alert(&token, &chat_id, &msg).await;
+                        });
+                    }
                 }
 
                 // ------------------------------------------------------------

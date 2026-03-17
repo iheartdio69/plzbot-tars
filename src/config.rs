@@ -54,6 +54,10 @@ pub struct Config {
 
     // Discovery queries
     pub market_discovery_queries: Vec<String>,
+
+    // Telegram
+    pub telegram_bot_token: String,
+    pub telegram_chat_id: String,
 }
 
 pub fn load_config() -> Config {
@@ -115,6 +119,10 @@ pub fn load_config() -> Config {
             "MARKET_DISCOVERY_QUERIES",
             vec!["pump".to_string(), "pumpfun".to_string()],
         ),
+
+        // Telegram
+        telegram_bot_token: env_str("TELEGRAM_BOT_TOKEN", ""),
+        telegram_chat_id: env_str("TELEGRAM_CHAT_ID", "374579541"),
     }
 }
 
