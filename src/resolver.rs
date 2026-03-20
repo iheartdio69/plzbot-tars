@@ -1,9 +1,15 @@
 use crate::config::Config;
-use crate::scoring::{window_stats_for, WhaleWindow};
+use crate::scoring::window::window_stats_for;
 use crate::time::now;
 use crate::types::{CallRecord, CoinState, Event, WalletStats, WhalePerf, WhaleTier};
 use colored::*;
 use std::collections::{HashMap, HashSet};
+
+#[derive(Debug, Default)]
+pub struct WhaleWindow {
+    pub beluga_count: usize,
+    pub blue_count: usize,
+}
 
 fn stats_since(events: &[Event], since_ts: u64) -> (usize, usize, WhaleWindow) {
     let mut uniq = HashSet::<&str>::new();
@@ -55,34 +61,27 @@ pub fn resolver_tick(
 
         let elapsed = now_ts.saturating_sub(call.call_ts);
 
-        // ---------- T+5 snapshot ----------
         if call.t5_ts.is_none() && elapsed >= cfg.resolve_t5_secs {
             if let Some(c) = coins.get(&call.mint) {
-                // Use the SAME window logic used elsewhere (last WINDOW_SECS)
                 let (tx_now, signers_now, _ww) = window_stats_for(&c.events, cfg.window_secs);
-
                 call.t5_ts = Some(now_ts);
                 call.wallets_t5 = Some(signers_now);
                 call.tx_t5 = Some(tx_now);
             } else {
-                // coin not found; still mark snapshot to avoid repeated attempts
                 call.t5_ts = Some(now_ts);
                 call.wallets_t5 = Some(0);
                 call.tx_t5 = Some(0);
             }
         }
 
-        // ---------- T+15 final resolution ----------
         if elapsed >= cfg.resolve_t15_secs {
             if let Some(c) = coins.get(&call.mint) {
-                // For final stats, count everything since call time (not rolling window)
                 let (tx_now, signers_now, _ww) = stats_since(&c.events, call.call_ts);
 
                 call.t15_ts = Some(now_ts);
                 call.wallets_t15 = Some(signers_now);
                 call.tx_t15 = Some(tx_now);
 
-                // baseline: t5 snapshot (avoid divide-by-zero)
                 let w5 = call.wallets_t5.unwrap_or(0).max(1);
                 let t5 = call.tx_t5.unwrap_or(0).max(1);
 
@@ -100,41 +99,34 @@ pub fn resolver_tick(
                 call.outcome = Some(outcome.to_string());
 
                 match outcome {
-                    "WIN" => {
-                        println!(
-                            "{}",
-                            format!(
-                                "✅ RESOLVED WIN: {}  (w {}→{} {:.2}x | tx {}→{} {:.2}x)",
-                                call.mint, w5, signers_now, w_mult, t5, tx_now, t_mult
-                            )
-                            .bold()
-                            .bright_green()
-                        );
-                    }
-                    "MID" => {
-                        println!(
-                            "{}",
-                            format!(
-                                "➖ RESOLVED MID: {}  (w {}→{} {:.2}x | tx {}→{} {:.2}x)",
-                                call.mint, w5, signers_now, w_mult, t5, tx_now, t_mult
-                            )
-                            .bright_black()
-                        );
-                    }
-                    _ => {
-                        println!(
-                            "{}",
-                            format!(
-                                "❌ RESOLVED LOSS: {}  (w {}→{} {:.2}x | tx {}→{} {:.2}x)",
-                                call.mint, w5, signers_now, w_mult, t5, tx_now, t_mult
-                            )
-                            .bold()
-                            .red()
-                        );
-                    }
+                    "WIN" => println!(
+                        "{}",
+                        format!(
+                            "✅ RESOLVED WIN: {}  (w {}→{} {:.2}x | tx {}→{} {:.2}x)",
+                            call.mint, w5, signers_now, w_mult, t5, tx_now, t_mult
+                        )
+                        .bold()
+                        .bright_green()
+                    ),
+                    "MID" => println!(
+                        "{}",
+                        format!(
+                            "➖ RESOLVED MID: {}  (w {}→{} {:.2}x | tx {}→{} {:.2}x)",
+                            call.mint, w5, signers_now, w_mult, t5, tx_now, t_mult
+                        )
+                        .bright_black()
+                    ),
+                    _ => println!(
+                        "{}",
+                        format!(
+                            "❌ RESOLVED LOSS: {}  (w {}→{} {:.2}x | tx {}→{} {:.2}x)",
+                            call.mint, w5, signers_now, w_mult, t5, tx_now, t_mult
+                        )
+                        .bold()
+                        .red()
+                    ),
                 }
 
-                // Only adjust wallet/whale performance on WIN/LOSS (keep MID neutral)
                 if outcome == "WIN" || outcome == "LOSS" {
                     for w in call.wallets_involved.iter() {
                         let ws = wallets.entry(w.clone()).or_default();
@@ -159,7 +151,6 @@ pub fn resolver_tick(
                     }
                 }
             } else {
-                // If coin disappeared, mark as LOSS so it doesn't hang forever
                 call.outcome = Some("LOSS".to_string());
             }
         }

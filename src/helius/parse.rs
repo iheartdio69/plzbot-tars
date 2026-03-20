@@ -30,12 +30,11 @@ pub fn estimate_sol_outflow(native: &[NativeTransfer], actor: &str) -> f64 {
 pub fn collect_mints(tts: &[TokenTransfer], cfg: &Config) -> Vec<String> {
     let mut mints: HashSet<String> = HashSet::new();
     for tt in tts {
-        if let Some(m) = &tt.mint {
-            if m == &cfg.sol_mint || m == &cfg.usdc_mint {
-                continue;
-            }
-            mints.insert(m.clone());
+        let m = &tt.mint;
+        if m.is_empty() || m == &cfg.sol_mint || m == &cfg.usdc_mint {
+            continue;
         }
+        mints.insert(m.clone());
     }
     mints.into_iter().collect()
 }

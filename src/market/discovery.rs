@@ -1,8 +1,8 @@
-// market/discovery.rs
 use crate::config::Config;
+use crate::market::types::DexPair;
+use serde::Deserialize;
 use std::collections::HashSet;
 use std::time::{Duration, Instant};
-use reqwest;
 
 #[derive(Debug, Default)]
 pub struct MarketDiscovery {
@@ -28,13 +28,19 @@ impl MarketDiscovery {
 
         for q in &cfg.market_discovery_queries {
             let url = format!("https://api.dexscreener.com/latest/dex/search?q={}", q);
-            let resp = reqwest::get(&url).await.ok()?.json::<DexResponse>().await.ok()?;
+            let resp = match reqwest::get(&url).await {
+                Ok(r) => r,
+                Err(_) => continue,
+            };
+            let body: DexResponse = match resp.json().await {
+                Ok(b) => b,
+                Err(_) => continue,
+            };
 
-            for p in resp.pairs {
+            for p in body.pairs.unwrap_or_default() {
                 if !is_pair_candidate(cfg, &p) {
                     continue;
                 }
-
                 let mint = p.base_token.address.clone();
                 if seen.insert(mint.clone()) {
                     let tx5m = pair_tx_5m(&p);
@@ -44,35 +50,64 @@ impl MarketDiscovery {
         }
 
         picked.sort_by_key(|(_, tx)| std::cmp::Reverse(*tx));
-        picked.into_iter().take(cfg.market_discovery_top_n).map(|(m, _)| m).collect()
+        picked
+            .into_iter()
+            .take(cfg.market_discovery_top_n)
+            .map(|(m, _)| m)
+            .collect()
     }
 }
 
 #[derive(Debug, Deserialize)]
 struct DexResponse {
-    pairs: Vec<DexPair>,
+    pairs: Option<Vec<DexPair>>,
 }
 
 fn is_pair_candidate(cfg: &Config, p: &DexPair) -> bool {
     if p.chain_id != "solana" {
         return false;
     }
-    let base_sym = p.base_token.symbol.as_ref().cloned().unwrap_or_default().to_uppercase();
-    let quote_sym = p.quote_token.symbol.as_ref().cloned().unwrap_or_default().to_uppercase();
+    let base_sym = p
+        .base_token
+        .symbol
+        .as_ref()
+        .cloned()
+        .unwrap_or_default()
+        .to_uppercase();
+    let quote_sym = p
+        .quote_token
+        .symbol
+        .as_ref()
+        .cloned()
+        .unwrap_or_default()
+        .to_uppercase();
     if cfg.avoid_bonk && (base_sym.contains("BONK") || quote_sym.contains("BONK")) {
         return false;
     }
-    let fdv = p.fdv.unwrap_or(0.0) >= cfg.discovery_min_fdv_usd;
-    let liq = p.liquidity.as_ref().map(|l| l.usd).unwrap_or(0.0) >= cfg.discovery_min_liq_usd;
-    let tx5m = pair_tx_5m(p) >= cfg.discovery_min_tx_5m;
-    fdv && liq && tx5m
+    let fdv_ok = p.fdv.unwrap_or(0.0) >= cfg.discovery_min_fdv_usd;
+    let liq_ok = p
+        .liquidity
+        .as_ref()
+        .and_then(|l| l.usd)
+        .unwrap_or(0.0)
+        >= cfg.discovery_min_liq_usd;
+    let tx5m_ok = pair_tx_5m(p) >= cfg.discovery_min_tx_5m;
+    fdv_ok && liq_ok && tx5m_ok
 }
 
 fn pair_tx_5m(p: &DexPair) -> u64 {
-    p.txns.as_ref().and_then(|t| t.m5.as_ref()).map(|m| m.buys.unwrap_or(0) + m.sells.unwrap_or(0)).unwrap_or(0)
+    p.txns
+        .as_ref()
+        .and_then(|t| t.m5.as_ref())
+        .map(|m| m.buys.unwrap_or(0) + m.sells.unwrap_or(0))
+        .unwrap_or(0)
 }
 
-pub fn merge_discovered(discovered: &mut std::collections::VecDeque<String>, new_mints: Vec<String>, cap: usize) -> usize {
+pub fn merge_discovered(
+    discovered: &mut std::collections::VecDeque<String>,
+    new_mints: Vec<String>,
+    cap: usize,
+) -> usize {
     let mut existing: HashSet<String> = discovered.iter().cloned().collect();
     let mut added = 0;
 

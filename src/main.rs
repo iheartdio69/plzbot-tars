@@ -2,7 +2,11 @@ mod app;
 mod config;
 mod fmt;
 mod helius;
+mod io;
 mod market;
+mod onchain;
+mod printing;
+mod resolver;
 mod scoring;
 mod time;
 mod types;
@@ -13,7 +17,7 @@ async fn main() {
 
     let cfg = config::load_config();
 
-    println!("🚀 solana_meme starting");
+    println!("🚀 plzbot starting");
     println!(
         "CFG snapshot={}s window={}s min_call_fdv=${}",
         cfg.snapshot_interval_secs, cfg.window_secs, cfg.min_call_fdv_usd

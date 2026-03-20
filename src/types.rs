@@ -1,4 +1,3 @@
-// types.rs
 use serde::{Deserialize, Serialize};
 use std::time::Instant;
 
@@ -19,22 +18,21 @@ pub struct Event {
 
 #[derive(Debug, Clone)]
 pub struct CoinState {
+    pub mint: String,
     pub first_seen: Instant,
     pub last_snapshot: Instant,
     pub first_snapshot_done: bool,
-
     pub active: bool,
     pub low_score_streak: u32,
-
     pub prev_tx_window: usize,
     pub prev_signers_window: usize,
-
     pub events: Vec<Event>,
 }
 
 impl CoinState {
     pub fn new() -> Self {
         CoinState {
+            mint: String::new(),
             first_seen: Instant::now(),
             last_snapshot: Instant::now(),
             first_snapshot_done: false,
@@ -43,6 +41,13 @@ impl CoinState {
             prev_tx_window: 0,
             prev_signers_window: 0,
             events: Vec::new(),
+        }
+    }
+
+    pub fn new_with_mint(mint: String) -> Self {
+        CoinState {
+            mint,
+            ..CoinState::new()
         }
     }
 }
@@ -67,44 +72,22 @@ pub struct CallRecord {
     pub whales_involved: Vec<String>,
 }
 
-// market/types.rs (stub for DexPair; expand as needed)
-#[derive(Debug, Clone, Deserialize)]
-pub struct DexPair {
-    pub chain_id: String,
-    pub base_token: TokenInfo,
-    pub quote_token: TokenInfo,
-    pub fdv: Option<f64>,
-    pub liquidity: Option<Liquidity>,
-    pub txns: Option<Txns>,
-    // Add more fields as needed from Dexscreener response
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct WalletStats {
+    pub wins: u32,
+    pub losses: u32,
+    pub score: i32,
 }
 
-#[derive(Debug, Clone, Deserialize)]
-pub struct TokenInfo {
-    pub address: String,
-    pub symbol: Option<String>,
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct WhalePerf {
+    pub wins: u32,
+    pub losses: u32,
+    pub score: f64,
 }
 
-#[derive(Debug, Clone, Deserialize)]
-pub struct Liquidity {
-    pub usd: f64,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct Txns {
-    pub m5: Option<TxnCounts>,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct TxnCounts {
-    pub buys: Option<u64>,
-    pub sells: Option<u64>,
-}
-
-#[derive(Debug, Default)]
-pub struct MarketTrend {
-    pub last_fdv: Option<f64>,
-    pub last_liq: Option<f64>,
-    pub price_accel: f64, // Stub
-    pub fdv_accel: f64,   // Stub
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct Usage {
+    pub day: u64,
+    pub requests: u64,
 }

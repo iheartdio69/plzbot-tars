@@ -1,20 +1,18 @@
-// scoring/engine.rs
 use crate::config::Config;
 use crate::market::cache::{market_trend, MarketCache};
 use crate::scoring::shadow::{shadow_should_add, shadow_touch, ShadowMap};
 use crate::scoring::window::{
     prune_window, runner_score, window_stats_for, window_wallets, window_whales,
 };
-use crate::types::{CallRecord, CoinState};
-use crate::time::now_ts; // assuming you have this helper
+use crate::time::now_ts;
 use crate::fmt::fmt_f64_0_commas;
+use crate::types::{CallRecord, CoinState};
 
 use colored::*;
-use std::collections::{HashMap, HashSet, VecDeque};
-use std::time::Instant;
-
 use lazy_static::lazy_static;
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::Mutex;
+use std::time::Instant;
 
 lazy_static! {
     static ref WALLET_REPUTATION: Mutex<HashMap<String, f64>> = Mutex::new(HashMap::new());
@@ -30,7 +28,6 @@ fn is_bonk_like(s: &str) -> bool {
 struct SkipCounters {
     scanned: u64,
     called: u64,
-
     skip_bonk: u64,
     skip_missing_coin: u64,
     skip_snapshot: u64,
@@ -42,7 +39,6 @@ struct SkipCounters {
     skip_young_baseline: u64,
     skip_activity: u64,
     skip_active_full: u64,
-    // you can add more if needed
 }
 
 impl SkipCounters {
@@ -134,15 +130,16 @@ pub fn score_and_manage(
         c.prev_tx_window = tx_now;
         c.prev_signers_window = signers_now;
 
-        // Absolute activity floor
-        let activity_floor = if signers_now >= cfg.min_signers_for_target && tx_now >= cfg.min_tx_for_target {
+        let activity_floor = if signers_now >= cfg.min_signers_for_target
+            && tx_now >= cfg.min_tx_for_target
+        {
             10
         } else {
             0
         };
         score += activity_floor;
 
-        // === WALLET QUALITY SCORE ===
+        // Wallet quality score
         let wallets = window_wallets(&c.events, cfg.window_secs);
 
         let rep_lock = WALLET_REPUTATION.lock().unwrap();
@@ -157,7 +154,6 @@ pub fn score_and_manage(
         for wallet in &wallets {
             let rep = rep_lock.get(wallet).cloned().unwrap_or(0.0);
             total_rep += rep;
-
             if rep > 5.0 {
                 good_count += 1;
                 top_good.push((wallet.clone(), rep));
@@ -167,15 +163,21 @@ pub fn score_and_manage(
             }
         }
 
-        let avg_rep = if !wallets.is_empty() { total_rep / wallets.len() as f64 } else { 0.0 };
-        let wallet_quality_boost = (avg_rep * 2.0) as i32
-            + (good_count as i32 * 5)
-            - (bad_count as i32 * 10);
+        let avg_rep = if !wallets.is_empty() {
+            total_rep / wallets.len() as f64
+        } else {
+            0.0
+        };
+        let wallet_quality_boost =
+            (avg_rep * 2.0) as i32 + (good_count as i32 * 5) - (bad_count as i32 * 10);
 
         score += wallet_quality_boost;
 
-        // Hard red-flag gate
-        let bad_ratio = if signers_now > 0 { bad_count as f64 / signers_now as f64 } else { 0.0 };
+        let bad_ratio = if signers_now > 0 {
+            bad_count as f64 / signers_now as f64
+        } else {
+            0.0
+        };
         if bad_ratio > 0.20 {
             println!(
                 "{}",
@@ -184,7 +186,11 @@ pub fn score_and_manage(
                     mint.red().bold(),
                     bad_ratio,
                     bad_count,
-                    top_bad.iter().take(3).map(|(w, _)| w.as_str()).collect::<Vec<_>>()
+                    top_bad
+                        .iter()
+                        .take(3)
+                        .map(|(w, _)| w.as_str())
+                        .collect::<Vec<_>>()
                 )
                 .bold()
                 .red()
@@ -195,18 +201,27 @@ pub fn score_and_manage(
 
         top_good.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
         top_bad.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
-        // === END WALLET QUALITY ===
+
+        drop(rep_lock);
+        drop(rug_lock);
 
         // Market boosts
         let mut market_boost = 0;
-        if fdv > 50_000.0 { market_boost += 5; }
-        if fdv > 150_000.0 { market_boost += 10; }
-        if fdv > 300_000.0 { market_boost += 15; }
-        // Add accel when you have it
+        if fdv > 50_000.0 {
+            market_boost += 5;
+        }
+        if fdv > 150_000.0 {
+            market_boost += 10;
+        }
+        if fdv > 300_000.0 {
+            market_boost += 15;
+        }
         score += market_boost;
 
-        // Shadow watch
-        if shadow_should_add(score, cfg, trend.price_accel, trend.fdv_accel) {
+        // Shadow watch — convert bool fields to f64
+        let price_accel_f = if trend.price_accel { 1.0 } else { 0.0 };
+        let fdv_accel_f = if trend.fdv_accel { 1.0 } else { 0.0 };
+        if shadow_should_add(score, cfg, price_accel_f, fdv_accel_f) {
             shadow_touch(shadow, &mint, cfg, score);
         }
 
@@ -226,9 +241,8 @@ pub fn score_and_manage(
             continue;
         }
 
-        // Final call gate
         if c.active {
-            // already active, do nothing extra
+            // already active
         } else if active.len() >= cfg.max_active_coins {
             sk.skip_active_full += 1;
             queue.push_back(mint.clone());
@@ -243,8 +257,16 @@ pub fn score_and_manage(
                 avg_rep,
                 good_count,
                 bad_count,
-                top_good.iter().take(3).map(|(w, _)| w.as_str()).collect::<Vec<_>>(),
-                top_bad.iter().take(3).map(|(w, _)| w.as_str()).collect::<Vec<_>>(),
+                top_good
+                    .iter()
+                    .take(3)
+                    .map(|(w, _)| w.as_str())
+                    .collect::<Vec<_>>(),
+                top_bad
+                    .iter()
+                    .take(3)
+                    .map(|(w, _)| w.as_str())
+                    .collect::<Vec<_>>(),
             );
 
             println!(
@@ -302,7 +324,6 @@ pub fn score_and_manage(
                         .yellow()
                 );
 
-                // Promote next from queue
                 while let Some(next) = queue.pop_front() {
                     if active.contains(&next) {
                         continue;
