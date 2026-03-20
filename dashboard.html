@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TARS Dashboard</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0a0e1a;
+    color: #c8d8e8;
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    padding: 16px;
+  }
+  h1 {
+    color: #00d4ff;
+    font-size: 22px;
+    margin-bottom: 4px;
+    letter-spacing: 2px;
+  }
+  .subtitle { color: #4a6a8a; margin-bottom: 20px; font-size: 11px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+  .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 16px; }
+  .card {
+    background: #0f1624;
+    border: 1px solid #1a2a3a;
+    border-radius: 6px;
+    padding: 14px;
+  }
+  .card h2 { color: #00d4ff; font-size: 11px; letter-spacing: 1px; margin-bottom: 10px; text-transform: uppercase; }
+  .stat { font-size: 32px; color: #00ff88; font-weight: bold; }
+  .stat-label { color: #4a6a8a; font-size: 10px; margin-top: 2px; }
+  table { width: 100%; border-collapse: collapse; }
+  th { color: #4a6a8a; font-size: 10px; text-align: left; padding: 4px 6px; border-bottom: 1px solid #1a2a3a; text-transform: uppercase; }
+  td { padding: 5px 6px; border-bottom: 1px solid #0f1624; font-size: 12px; }
+  tr:hover td { background: #141e2e; }
+  .tag { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 10px; font-weight: bold; }
+  .tag-WHALE  { background: #003300; color: #00ff44; border: 1px solid #00ff44; }
+  .tag-SPIKE  { background: #003300; color: #00ff88; border: 1px solid #00ff88; }
+  .tag-RECOVERY { background: #332200; color: #ffaa00; border: 1px solid #ffaa00; }
+  .tag-GAMBOL { background: #1a0033; color: #cc88ff; border: 1px solid #cc88ff; }
+  .tag-RUNNER { background: #001a33; color: #00aaff; border: 1px solid #00aaff; }
+  .tag-REVIVE { background: #330011; color: #ff4488; border: 1px solid #ff4488; }
+  .tag-NEWBORN { background: #1a1a00; color: #ffff00; border: 1px solid #ffff00; }
+  .tag-MID    { background: #1a1a1a; color: #888888; border: 1px solid #444; }
+  .tag-SMALL  { background: #1a1a1a; color: #555; border: 1px solid #333; }
+  .win  { color: #00ff88; }
+  .loss { color: #ff4444; }
+  .pct  { color: #00d4ff; }
+  .refresh-btn {
+    background: #003344;
+    border: 1px solid #00d4ff;
+    color: #00d4ff;
+    padding: 6px 14px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: monospace;
+    font-size: 12px;
+    float: right;
+  }
+  .refresh-btn:hover { background: #004466; }
+  .ts { color: #4a6a8a; font-size: 10px; }
+  .fdv { color: #aaccee; }
+  .mint { color: #6688aa; font-size: 11px; }
+  #last-update { color: #2a4a6a; font-size: 10px; margin-top: 6px; }
+  .skip-mints {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 4px;
+  }
+  .skip-mint {
+    font-family: 'Courier New', monospace;
+    font-size: 10px;
+    color: #00d4aa;
+    background: rgba(0,212,170,0.08);
+    border: 1px solid #1a2a3a;
+    border-radius: 4px;
+    padding: 2px 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .skip-mint:hover {
+    background: rgba(0,212,170,0.25);
+    border-color: #00d4aa;
+  }
+  .skip-mint.copied {
+    color: #00ff88;
+    border-color: #00ff88;
+  }
+  .skip-mint a {
+    color: inherit;
+    text-decoration: none;
+    opacity: 0.7;
+  }
+  .skip-mint a:hover { opacity: 1; }
+  .skip-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 0;
+    border-bottom: 1px solid #0f1624;
+  }
+  .skip-reason { font-size: 12px; color: #c8d8e8; }
+  .skip-bar-wrap { width: 80px; background: #0a0e1a; border-radius: 2px; height: 6px; flex-shrink: 0; }
+  .skip-bar { height: 6px; background: #00d4ff; border-radius: 2px; transition: width 0.3s; }
+  .skip-count { color: #00d4ff; font-size: 12px; min-width: 24px; text-align: right; flex-shrink: 0; }
+  .empty { color: #2a4a6a; text-align: center; padding: 12px 0; font-size: 11px; }
+</style>
+</head>
+<body>
+<h1>🌊 TARS DASHBOARD</h1>
+<div class="subtitle">INTERFECTOR signal engine + TARS auto-trader</div>
+
+<div class="grid-4">
+  <div class="card">
+    <h2>Calls Today</h2>
+    <div class="stat" id="stat-total">—</div>
+    <div class="stat-label">signals fired</div>
+  </div>
+  <div class="card">
+    <h2>Win Rate</h2>
+    <div class="stat pct" id="stat-winrate">—</div>
+    <div class="stat-label">wins / losses</div>
+  </div>
+  <div class="card">
+    <h2>Active</h2>
+    <div class="stat" id="stat-active">—</div>
+    <div class="stat-label">positions open</div>
+  </div>
+  <div class="card">
+    <h2>Queue</h2>
+    <div class="stat" id="stat-queue">—</div>
+    <div class="stat-label">watching</div>
+  </div>
+</div>
+
+<div class="grid">
+  <div class="card">
+    <h2>Recent Calls <button class="refresh-btn" onclick="load()">↻ Refresh</button></h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Mint</th>
+          <th>FDV</th>
+          <th>Score</th>
+          <th>Lane</th>
+          <th>Result</th>
+          <th>Peak</th>
+        </tr>
+      </thead>
+      <tbody id="calls-body">
+        <tr><td colspan="6" style="color:#2a4a6a;text-align:center">Loading...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>Skip Reasons (last 5m)</h2>
+    <div id="skips-body"><div class="empty">Loading...</div></div>
+  </div>
+</div>
+
+<div id="last-update">—</div>
+
+<script>
+function fmt_fdv(v) {
+  if (!v) return '—';
+  if (v >= 1_000_000) return '$' + (v/1_000_000).toFixed(2) + 'M';
+  if (v >= 1_000) return '$' + (v/1_000).toFixed(1) + 'K';
+  return '$' + v.toFixed(0);
+}
+
+function fmt_mint(m) {
+  if (!m) return '—';
+  return m.slice(0, 6) + '…' + m.slice(-4);
+}
+
+function tag_html(tag) {
+  const cls = 'tag-' + (tag || 'MID');
+  return `<span class="tag ${cls}">${tag || '?'}</span>`;
+}
+
+async function load() {
+  try {
+    const resp = await fetch('/api/data');
+    const d = await resp.json();
+
+    // Stats
+    document.getElementById('stat-total').textContent = d.perf.total;
+    const wr = d.perf.win_rate.toFixed(1) + '%';
+    document.getElementById('stat-winrate').textContent = wr;
+    document.getElementById('stat-active').textContent = d.active_count;
+    document.getElementById('stat-queue').textContent = d.queue_count;
+
+    // Calls table
+    const cb = document.getElementById('calls-body');
+    if (d.calls_today.length === 0) {
+      cb.innerHTML = '<tr><td colspan="6" style="color:#2a4a6a;text-align:center">No calls yet today</td></tr>';
+    } else {
+      cb.innerHTML = d.calls_today.map(c => {
+        const res = c.result
+          ? `<span class="${c.result === 'win' ? 'win' : 'loss'}">${c.result}</span>`
+          : '<span class="ts">open</span>';
+        const mult = c.peak_fdv && c.fdv_usd
+          ? (c.peak_fdv / c.fdv_usd).toFixed(2) + 'x'
+          : '—';
+        return `<tr>
+          <td class="mint">${fmt_mint(c.mint)}</td>
+          <td class="fdv">${fmt_fdv(c.fdv_usd)}</td>
+          <td>${c.score}</td>
+          <td>${tag_html(c.tag)}</td>
+          <td>${res}</td>
+          <td>${mult}</td>
+        </tr>`;
+      }).join('');
+    }
+
+    // Skips
+    const skipsBody = document.getElementById('skips-body');
+    if (d.skip_reasons && d.skip_reasons.length > 0) {
+      const maxCnt = Math.max(...d.skip_reasons.map(s => s.cnt));
+      skipsBody.innerHTML = d.skip_reasons.map(s => {
+        const showMints = ['LATE_ENTRY', 'RUNNER_NOT_MOVING', 'RECOVERY', 'CONC_RISK'].includes(s.reason);
+        const mintsHtml = showMints && s.mints ? s.mints.map(m => `
+          <span class="skip-mint" onclick="navigator.clipboard.writeText('${m}').then(()=>this.classList.add('copied'))" title="Click to copy">
+            ${m.slice(0,8)}...
+            <a href="https://axiom.trade/t/${m}" target="_blank" onclick="event.stopPropagation()">↗</a>
+          </span>
+        `).join('') : '';
+        return `
+          <div class="skip-row">
+            <div style="flex:1">
+              <div class="skip-reason">${s.reason.replace(/_/g,' ')}</div>
+              ${mintsHtml ? `<div class="skip-mints">${mintsHtml}</div>` : ''}
+            </div>
+            <div class="skip-bar-wrap">
+              <div class="skip-bar" style="width:${(s.cnt/maxCnt*100).toFixed(0)}%"></div>
+            </div>
+            <div class="skip-count">${s.cnt}</div>
+          </div>
+        `;
+      }).join('');
+    } else {
+      skipsBody.innerHTML = '<div class="empty">NO SKIPS RECORDED</div>';
+    }
+
+    document.getElementById('last-update').textContent =
+      'Last updated: ' + new Date().toLocaleTimeString();
+  } catch (e) {
+    console.error(e);
+    document.getElementById('last-update').textContent = 'Error: ' + e.message;
+  }
+}
+
+load();
+setInterval(load, 10000);
+</script>
+</body>
+</html>

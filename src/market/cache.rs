@@ -33,6 +33,18 @@ pub struct MarketSample {
 }
 
 impl MarketCache {
+    /// Immediately seed a coin's FDV from PumpPortal data so scoring can start
+    /// before the first DexScreener poll. Only updates if the new value is higher.
+    pub fn inject_pump_fdv(&mut self, mint: &str, fdv_usd: f64) {
+        if fdv_usd <= 0.0 {
+            return;
+        }
+        let entry = self.map.entry(mint.to_string()).or_insert_with(MarketSample::default);
+        if entry.fdv.unwrap_or(0.0) < fdv_usd {
+            entry.fdv = Some(fdv_usd);
+        }
+    }
+
     pub async fn poll(&mut self, _cfg: &Config, priority: &[String], mints: &[String]) {
         let now_ts = crate::time::now();
 

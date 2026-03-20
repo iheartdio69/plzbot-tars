@@ -80,10 +80,20 @@ pub fn score_all_coins(
         // (distinct wallets in last 300s). DB can lag or count differently,
         // so treat DB as a floor, not a replacement.
         // ------------------------------------------------------------
-        let window_signers: usize = st.unique_signers_5m;
+        // Compute signers from in-memory events (zero DB queries)
+        let cutoff_5m = now.saturating_sub(300);
+        let mem_signers: usize = {
+            let mut seen = std::collections::HashSet::new();
+            for e in st.events.iter() {
+                if e.ts >= cutoff_5m {
+                    seen.insert(e.wallet.as_str());
+                }
+            }
+            seen.len()
+        };
         let db_signers: usize = db.signers_5m(now_ts, mint.as_str()).unwrap_or(0) as usize;
 
-        st.unique_signers_5m = window_signers.max(db_signers);
+        st.unique_signers_5m = mem_signers.max(db_signers);
 
         // Reset conc flag each tick (gating may set it later)
         st.skip_call_for_conc = false;

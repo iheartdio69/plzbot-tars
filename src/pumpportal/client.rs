@@ -1,13 +1,14 @@
 // src/pumpportal/client.rs
 use crate::config::Config;
 use crate::governor::Governor;
+use crate::pumpportal::types::PumpMint;
 use futures_util::{SinkExt, StreamExt};
 use serde_json::json;
 use std::sync::Arc;
 use tokio::sync::mpsc;
 use tokio_tungstenite::tungstenite::Message;
 
-pub async fn run(cfg: Config, tx: mpsc::Sender<String>, gov: Arc<Governor>) {
+pub async fn run(cfg: Config, tx: mpsc::Sender<PumpMint>, gov: Arc<Governor>) {
     // PumpPortal websocket traffic is NOT Helius credits, but we keep `gov`
     // in the signature so the whole app wiring stays consistent.
     let _ = gov;
@@ -66,6 +67,11 @@ pub async fn run(cfg: Config, tx: mpsc::Sender<String>, gov: Arc<Governor>) {
                         _ => continue,
                     };
 
+                    // Temporary: log full message to see available fields
+                    if std::env::var("DEBUG_PP").ok().as_deref() == Some("1") {
+                        eprintln!("DBG PP RAW: {}", &text[..text.len().min(500)]);
+                    }
+
                     let v: serde_json::Value = match serde_json::from_str(&text) {
                         Ok(v) => v,
                         Err(_) => continue,
@@ -81,8 +87,30 @@ pub async fn run(cfg: Config, tx: mpsc::Sender<String>, gov: Arc<Governor>) {
                         .filter(|s| !s.is_empty());
 
                     if let Some(mint) = mint {
+                        let market_cap_sol = v
+                            .get("marketCapSol")
+                            .and_then(|x| x.as_f64());
+                        let v_sol_in_bonding_curve = v
+                            .get("vSolInBondingCurve")
+                            .and_then(|x| x.as_f64());
+                        let v_tokens_in_bonding_curve = v
+                            .get("vTokensInBondingCurve")
+                            .and_then(|x| x.as_f64());
+                        let creator = v
+                            .get("traderPublicKey")
+                            .and_then(|x| x.as_str())
+                            .map(|s| s.to_string());
+
+                        let pump_mint = PumpMint {
+                            mint,
+                            market_cap_sol,
+                            v_sol_in_bonding_curve,
+                            v_tokens_in_bonding_curve,
+                            creator,
+                        };
+
                         // Best-effort send; if receiver is dropped, just stop the task.
-                        if tx.send(mint).await.is_err() {
+                        if tx.send(pump_mint).await.is_err() {
                             eprintln!("🟣 pumpportal receiver dropped; stopping task");
                             return;
                         }

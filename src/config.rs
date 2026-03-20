@@ -7,6 +7,9 @@ pub struct Config {
     pub pumpportal_wss: String,
     pub pumpportal_api_key: String,
     pub pumpportal_channel: String,
+    pub pumpportal_public_key: String,
+    pub pumpportal_private_key: String,
+    pub pumpportal_api_key_trade: String,
 
     // Core loop
     pub main_loop_sleep: u64,
@@ -60,8 +63,7 @@ pub struct Config {
     pub telegram_chat_id: String,
 
     // TARS (auto-trading)
-    pub frontrun_api_key: String,
-    pub frontrun_wallet: String,
+    pub tars_private_key: String,
     pub tars_enabled: bool,
     pub tars_buy_sol: f64,
     pub tars_tp1_mult: f64,
@@ -78,6 +80,9 @@ pub fn load_config() -> Config {
         pumpportal_wss: env_str("PUMPPORTAL_WSS", "wss://pumpportal.fun/api/data"),
         pumpportal_api_key: env_str("PUMPPORTAL_API_KEY", ""),
         pumpportal_channel: env_str("PUMPPORTAL_CHANNEL", "subscribeNewToken"),
+        pumpportal_public_key: env_str("PUMPPORTAL_PUBLIC_KEY", ""),
+        pumpportal_private_key: env_str("PUMPPORTAL_PRIVATE_KEY", ""),
+        pumpportal_api_key_trade: env_str("PUMPPORTAL_API_KEY", ""),
 
         // Core
         main_loop_sleep: env_u64("MAIN_LOOP_SLEEP", 5),
@@ -104,7 +109,7 @@ pub fn load_config() -> Config {
 
         // Call gate
         min_call_fdv_usd: env_f64("MIN_CALL_FDV_USD", 15_000.0),
-        max_call_fdv_usd: env_f64("MAX_CALL_FDV_USD", 55_000.0),
+        max_call_fdv_usd: env_f64("MAX_CALL_FDV_USD", 500_000.0),
 
         // Whale tiers (Blue > Beluga)
         beluga_sol_tx: env_f64("BELUGA_SOL_TX", 2.0),
@@ -134,8 +139,7 @@ pub fn load_config() -> Config {
         telegram_chat_id: env_str("TELEGRAM_CHAT_ID", "374579541"),
 
         // TARS (auto-trading)
-        frontrun_api_key: env_str("FRONTRUN_API_KEY", ""),
-        frontrun_wallet: env_str("FRONTRUN_WALLET", ""),
+        tars_private_key: env_str("TARS_PRIVATE_KEY", ""),
         tars_enabled: env_bool("TARS_ENABLED", false),
         tars_buy_sol: env_f64("TARS_BUY_SOL", 0.1),
         tars_tp1_mult: env_f64("TARS_TP1_MULT", 1.5),

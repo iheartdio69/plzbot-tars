@@ -144,27 +144,15 @@ fn collect_mints(token: &[TokenTransfer]) -> Vec<String> {
 
 // ---------------- main ingest ----------------
 
-/// Wallet-driven ingest:
-/// - calls Helius REST: /v0/addresses/<WALLET>/transactions
-/// - builds signer set from fee_payer + transfer participants
-/// - attaches events to each mint seen (excluding base mints)
-/// - writes wallet_edges rows (for later reputation)
-pub async fn ingest_wallet_activity(
+/// Fetch transactions for a single wallet from Helius.
+/// Handles 429 retry and per-request timeout. Returns Err on any failure.
+async fn fetch_wallet_transactions(
     cfg: &Config,
-    db: &mut Db,
-    coins: &mut HashMap<String, CoinState>,
-    wallets: &[String],
-    gov: Arc<Governor>,
-    shutdown: &tokio_util::sync::CancellationToken,
-) -> Result<(), anyhow::Error> {
-    if cfg.helius_api_key.trim().is_empty() {
-        eprintln!("DBG helius ingest: HELIUS_API_KEY empty -> skipping");
-        return Ok(());
-    }
-
+    gov: &Arc<Governor>,
+    wallet: &str,
+) -> Result<Vec<HeliusTx>> {
     let client = Client::new();
 
-    // normalize base to ".../v0/addresses"
     let raw = cfg.helius_addr_url.trim().trim_end_matches('/');
     let base = if raw.ends_with("/v0/addresses") {
         raw.to_string()
@@ -172,214 +160,197 @@ pub async fn ingest_wallet_activity(
         format!("{}/v0/addresses", raw)
     };
 
-    eprintln!(
-        "DBG helius ingest: base={} api_key_len={} wallets={}",
+    let url = format!(
+        "{}/{}/transactions?api-key={}&limit={}",
         base,
+        wallet,
+        cfg.helius_api_key.trim(),
+        cfg.fetch_limit
+    );
+
+    let permit = gov.acquire_enhanced().await;
+
+    // ---------- first attempt ----------
+    let mut resp = match tokio::time::timeout(
+        std::time::Duration::from_secs(5),
+        client.get(&url).send(),
+    ).await {
+        Ok(Ok(r)) => r,
+        Ok(Err(e)) => return Err(anyhow::anyhow!("request error: {}", e)),
+        Err(_) => return Err(anyhow::anyhow!("timeout")),
+    };
+
+    // ---------- 429 handling (one retry) ----------
+    if resp.status() == reqwest::StatusCode::TOO_MANY_REQUESTS {
+        let body = resp.text().await.unwrap_or_default();
+        eprintln!(
+            "DBG helius ingest: 429 wallet={} body_snip={}",
+            wallet,
+            body.chars().take(200).collect::<String>()
+        );
+        gov.on_429_enhanced().await;
+        drop(permit);
+        tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+
+        let permit2 = gov.acquire_enhanced().await;
+        resp = match tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            client.get(&url).send(),
+        ).await {
+            Ok(Ok(r)) => r,
+            Ok(Err(e)) => return Err(anyhow::anyhow!("retry error: {}", e)),
+            Err(_) => return Err(anyhow::anyhow!("retry timeout")),
+        };
+
+        if resp.status() == reqwest::StatusCode::TOO_MANY_REQUESTS {
+            gov.on_429_enhanced().await;
+            return Err(anyhow::anyhow!("429 after retry"));
+        }
+        if !resp.status().is_success() {
+            return Err(anyhow::anyhow!("non-200 after retry: {}", resp.status()));
+        }
+        gov.on_success(permit2.lane()).await;
+    } else {
+        if !resp.status().is_success() {
+            return Err(anyhow::anyhow!("non-200: {}", resp.status()));
+        }
+        gov.on_success(permit.lane()).await;
+    }
+
+    let txs: Vec<HeliusTx> = resp.json().await
+        .map_err(|e| anyhow::anyhow!("json error: {}", e))?;
+
+    Ok(txs)
+}
+
+/// Process a batch of fetched transactions into coins/db for a single wallet.
+fn process_wallet_transactions(
+    db: &mut Db,
+    coins: &mut HashMap<String, CoinState>,
+    cfg: &Config,
+    wallet: &str,
+    txs: Vec<HeliusTx>,
+) -> Result<()> {
+    for tx in txs {
+        if tx.transaction_error.is_some() {
+            continue;
+        }
+
+        let sig = match tx.signature.as_deref() {
+            Some(s) if !s.is_empty() => s,
+            _ => continue,
+        };
+
+        let ts = tx.timestamp.unwrap_or(0);
+        if ts == 0 {
+            continue;
+        }
+
+        if db.seen_sig(sig)? {
+            continue;
+        }
+        db.mark_sig(ts as i64, sig)?;
+
+        let fee_payer = tx.fee_payer.clone().unwrap_or_else(|| wallet.to_string());
+        let sol_mag = estimate_sol_mag(&tx.native_transfers, &fee_payer);
+        let signers = tx_signers(&tx, &fee_payer);
+
+        // Dust ignore
+        if sol_mag < 0.01 && signers.len() <= 1 {
+            continue;
+        }
+
+        let tier = classify_tier(sol_mag, cfg);
+        let mints = collect_mints(&tx.token_transfers);
+        if mints.is_empty() {
+            continue;
+        }
+
+        for mint in mints {
+            coins.entry(mint.clone()).or_insert_with(CoinState::new);
+
+            if let Some(st) = coins.get_mut(&mint) {
+                if ts > 0 && (st.first_seen == 0 || ts < st.first_seen) {
+                    st.first_seen = ts;
+                }
+                for w in signers.iter() {
+                    st.events.push(Event { wallet: w.clone(), ts, sol: sol_mag, tier });
+                }
+                st.last_activity_ts = st.last_activity_ts.max(ts);
+                if st.events.len() > 50_000 {
+                    st.events.drain(0..10_000);
+                }
+            }
+
+            for w in signers.iter() {
+                let _ = db.insert_wallet_edge(
+                    ts as i64, w, None, Some(mint.as_str()),
+                    "helius_tx", Some(sol_mag), Some(sig),
+                );
+            }
+
+            for tt in &tx.token_transfers {
+                let tm = tt.mint.as_str().trim();
+                if tm.is_empty() || is_ignored_mint(tm) { continue; }
+                let from = tt.from_user_account.as_deref().unwrap_or("").trim();
+                let to   = tt.to_user_account.as_deref().unwrap_or("").trim();
+                if from.is_empty() || to.is_empty() { continue; }
+                let _ = db.insert_wallet_edge(
+                    ts as i64, from, Some(to), Some(tm),
+                    "token_transfer", None, Some(sig),
+                );
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Wallet-driven ingest — fetches all wallets concurrently, processes results sequentially.
+pub async fn ingest_wallet_activity(
+    cfg: &Config,
+    db: &mut Db,
+    coins: &mut HashMap<String, CoinState>,
+    wallets: &[String],
+    gov: Arc<Governor>,
+    shutdown: &tokio_util::sync::CancellationToken,
+) -> Result<()> {
+    if wallets.is_empty() || shutdown.is_cancelled() {
+        return Ok(());
+    }
+    if cfg.helius_api_key.trim().is_empty() {
+        eprintln!("DBG helius ingest: HELIUS_API_KEY empty -> skipping");
+        return Ok(());
+    }
+
+    eprintln!(
+        "DBG helius ingest: api_key_len={} wallets={} (concurrent)",
         cfg.helius_api_key.trim().len(),
         wallets.len()
     );
 
-    for w in wallets {
-        if shutdown.is_cancelled() {
-            return Ok(());
-        }
-        let w = w.trim();
-        if w.is_empty() {
-            continue;
-        }
+    // Fetch all wallets concurrently with a hard 10s global timeout
+    let futures: Vec<_> = wallets.iter().map(|wallet| {
+        let cfg = cfg.clone();
+        let gov = gov.clone();
+        let wallet = wallet.clone();
+        async move { fetch_wallet_transactions(&cfg, &gov, &wallet).await }
+    }).collect();
 
-        let url = format!(
-            "{}/{}/transactions?api-key={}&limit={}",
-            base,
-            w,
-            cfg.helius_api_key.trim(),
-            cfg.fetch_limit
-        );
+    let results = tokio::time::timeout(
+        std::time::Duration::from_secs(10),
+        futures_util::future::join_all(futures),
+    ).await.unwrap_or_default();
 
-
-        // v0/addresses/.../transactions is "Enhanced Transactions" credits
-        let permit = gov.acquire_enhanced().await;
-
-        // ---------- first attempt ----------
-        let mut resp = match client.get(&url).send().await {
-            Ok(r) => r,
+    // Process results sequentially (db + coins need exclusive access)
+    for (wallet, result) in wallets.iter().zip(results.into_iter()) {
+        match result {
+            Ok(txs) => {
+                process_wallet_transactions(db, coins, cfg, wallet, txs)?;
+            }
             Err(e) => {
-                eprintln!("DBG helius ingest: request error wallet={} err={}", w, e);
-                continue;
-            }
-        };
-
-        // ---------- 429 handling (one retry) ----------
-        if resp.status() == reqwest::StatusCode::TOO_MANY_REQUESTS {
-            let body = resp.text().await.unwrap_or_default();
-            eprintln!(
-                "DBG helius ingest: non-200 wallet={} status=429 Too Many Requests body_snip={}",
-                w,
-                body.chars().take(200).collect::<String>()
-            );
-
-            gov.on_429_enhanced().await;
-
-            // IMPORTANT: free inflight slot before sleeping
-            drop(permit);
-
-            tokio::time::sleep(std::time::Duration::from_millis(250)).await;
-
-            // retry once
-            let permit2 = gov.acquire_enhanced().await;
-            resp = match client.get(&url).send().await {
-                Ok(r) => r,
-                Err(e) => {
-                    eprintln!("DBG helius ingest: retry error wallet={} err={}", w, e);
-                    continue;
-                }
-            };
-
-            if resp.status() == reqwest::StatusCode::TOO_MANY_REQUESTS {
-                let body = resp.text().await.unwrap_or_default();
-                eprintln!(
-            "DBG helius ingest: retry non-200 wallet={} status=429 Too Many Requests body_snip={}",
-            w,
-            body.chars().take(200).collect::<String>()
-        );
-                gov.on_429_enhanced().await;
-                continue;
-            }
-
-            if !resp.status().is_success() {
-                let status = resp.status();
-                let body = resp.text().await.unwrap_or_default();
-                eprintln!(
-                    "DBG helius ingest: retry non-200 wallet={} status={} body_snip={}",
-                    w,
-                    status,
-                    body.chars().take(200).collect::<String>()
-                );
-                continue;
-            }
-
-            // success after retry
-            gov.on_success(permit2.lane()).await;
-        } else {
-            // ---------- non-429 path ----------
-            if !resp.status().is_success() {
-                let status = resp.status();
-                let body = resp.text().await.unwrap_or_default();
-                eprintln!(
-                    "DBG helius ingest: non-200 wallet={} status={} body_snip={}",
-                    w,
-                    status,
-                    body.chars().take(200).collect::<String>()
-                );
-                continue;
-            }
-
-            gov.on_success(permit.lane()).await;
-        }
-
-        // ✅ At this point: resp is SUCCESS and still usable for JSON
-        let txs: Vec<HeliusTx> = match resp.json().await {
-            Ok(v) => v,
-            Err(e) => {
-                eprintln!("DBG helius ingest: json error wallet={} err={}", w, e);
-                continue;
-            }
-        };
-
-        for tx in txs {
-            if tx.transaction_error.is_some() {
-                continue;
-            }
-
-            let sig = match tx.signature.as_deref() {
-                Some(s) if !s.is_empty() => s,
-                _ => continue,
-            };
-
-            let ts = tx.timestamp.unwrap_or(0);
-            if ts == 0 {
-                continue;
-            }
-
-            // dedupe
-            if db.seen_sig(sig)? {
-                continue;
-            }
-            db.mark_sig(ts as i64, sig)?;
-
-            let fee_payer = tx.fee_payer.clone().unwrap_or_else(|| w.to_string());
-            let sol_mag = estimate_sol_mag(&tx.native_transfers, &fee_payer);
-
-            let signers = tx_signers(&tx, &fee_payer);
-
-            // Optional dust ignore
-            if sol_mag < 0.01 && signers.len() <= 1 {
-                continue;
-            }
-
-            let tier = classify_tier(sol_mag, cfg);
-            let mints = collect_mints(&tx.token_transfers);
-            if mints.is_empty() {
-                continue;
-            }
-
-            for mint in mints {
-                coins.entry(mint.clone()).or_insert_with(CoinState::new);
-
-                if let Some(st) = coins.get_mut(&mint) {
-                    // Use the earliest transaction timestamp as first_seen
-                    if ts > 0 && (st.first_seen == 0 || ts < st.first_seen) {
-                        st.first_seen = ts;
-                    }
-
-                    for wallet in signers.iter() {
-                        st.events.push(Event {
-                            wallet: wallet.clone(),
-                            ts,
-                            sol: sol_mag,
-                            tier,
-                        });
-                    }
-
-                    st.last_activity_ts = st.last_activity_ts.max(ts);
-
-                    if st.events.len() > 50_000 {
-                        st.events.drain(0..10_000);
-                    }
-                }
-
-                for wallet in signers.iter() {
-                    let _ = db.insert_wallet_edge(
-                        ts as i64,
-                        wallet,
-                        None,
-                        Some(mint.as_str()),
-                        "helius_tx",
-                        Some(sol_mag),
-                        Some(sig),
-                    );
-                }
-
-                for tt in &tx.token_transfers {
-                    let tm = tt.mint.as_str().trim();
-                    if tm.is_empty() || is_ignored_mint(tm) {
-                        continue;
-                    }
-                    let from = tt.from_user_account.as_deref().unwrap_or("").trim();
-                    let to = tt.to_user_account.as_deref().unwrap_or("").trim();
-                    if from.is_empty() || to.is_empty() {
-                        continue;
-                    }
-                    let _ = db.insert_wallet_edge(
-                        ts as i64,
-                        from,
-                        Some(to),
-                        Some(tm),
-                        "token_transfer",
-                        None,
-                        Some(sig),
-                    );
-                }
+                let w = wallet.as_str();
+                let snip = if w.len() >= 8 { &w[..8] } else { w };
+                eprintln!("DBG wallet fetch ERR wallet={} err={:?}", snip, e);
             }
         }
     }

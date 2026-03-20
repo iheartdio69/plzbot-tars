@@ -15,10 +15,10 @@ fn is_bonk_like_mint(mint: &str) -> bool {
 }
 
 /// Returns an approximate FDV from ~5m ago using existing snapshots.
-/// We pick a value in [now-360, now-240] and take the peak in that window.
+/// We pick a value in [now-420, now-270] and take the peak in that window.
 fn fdv_approx_300s_ago(db: &mut crate::db::Db, now_ts: i64, mint: &str) -> Option<f64> {
-    let start = now_ts - 360;
-    let end = now_ts - 240;
+    let start = now_ts - 420;
+    let end = now_ts - 270;
 
     db.peak_fdv_for_mint_window(mint, start, end)
         .ok()
@@ -120,15 +120,19 @@ fn skip_and_maybe_demote(
         return;
     }
 
-    // Soft demote: build a streak (FDV failures count heavier)
-    if bucket == "fdv" {
-        st.demote_streak = st.demote_streak.saturating_add(2);
+    // Make it much harder to demote on quality gates
+    if bucket == "fdv" || bucket == "conc" {
+        st.demote_streak = st.demote_streak.saturating_add(3);
     } else {
         st.demote_streak = st.demote_streak.saturating_add(1);
     }
 
     // Threshold check
-    let threshold: u32 = cfg.demote_streak.max(1);
+    let threshold: u32 = if bucket == "fdv" || bucket == "conc" {
+        cfg.demote_streak.max(1)
+    } else {
+        cfg.demote_streak.max(1) * 3 // 3x harder to demote on quality gates
+    };
     if st.demote_streak >= threshold {
         st.active = false;
         st.demote_streak = 0;
@@ -186,7 +190,7 @@ pub fn process_calls(
 
     // Anti-spoof / deadzone
     let dead_tx_min: u64 = 30;
-    let spoof_tx_min: u64 = 120;
+    let spoof_tx_min: u64 = 500;
     let spoof_signers_max: u64 = 2;
 
     // Refined-only gates
@@ -240,7 +244,16 @@ pub fn process_calls(
         // Warmup flag for momentum gate (per-mint, based on age)
         let first_seen: u64 = coins.get(mint).map(|s| s.first_seen).unwrap_or(0);
         let age_sec: u64 = now.saturating_sub(first_seen);
-        let in_momentum_warmup: bool = age_sec < momentum_warmup_sec;
+        // Use DB-corrected true age for all age-based gates
+        let db_first_seen_ts: u64 = db.mint_first_seen_ts(mint.as_str())
+            .ok().flatten().unwrap_or(0) as u64;
+        let true_first_seen: u64 = if db_first_seen_ts > 0 {
+            db_first_seen_ts.min(first_seen)
+        } else {
+            first_seen
+        };
+        let true_age_sec: u64 = now.saturating_sub(true_first_seen);
+        let in_momentum_warmup: bool = true_age_sec < momentum_warmup_sec;
 
         // 0) Quick excludes
         if is_bonk_like_mint(mint) {
@@ -298,10 +311,43 @@ pub fn process_calls(
         let ev: u64 = db.events_5m(now_ts, mint.as_str()).unwrap_or(0) as u64;
         let db_uniq_sigs_5m: u64 = db.uniq_sigs_5m(now_ts, mint.as_str()).unwrap_or(0);
 
-        let signer_strength: u64 = mem_signers_5m.max(db_uniq_sigs_5m);
+        let db_signers_5m: u64 = db.signers_5m(now_ts, mint.as_str()).unwrap_or(0);
+        let signer_strength: u64 = mem_signers_5m.max(db_uniq_sigs_5m).max(db_signers_5m);
         let signers: u64 = signer_strength;
 
         let wallet_delta: i32 = coins.get(mint).map(|s| s.wallet_delta).unwrap_or(0);
+
+        // Compute bypass flags early — used throughout all gates below
+
+        // Signal 1: Early snipe — high % growth on small cap
+        let early_snipe: bool = if let Some(fdv_5m) = fdv_approx_300s_ago(db, now_ts, mint.as_str()) {
+            fdv > 0.0
+                && fdv_5m > 0.0
+                && fdv < 50_000.0 // small cap only
+                && ((fdv / fdv_5m) - 1.0) >= 0.15 // 15%+ growth
+        } else {
+            false
+        };
+
+        // Signal 2: Conviction momentum — strong SOL inflow on mid cap
+        let conviction_momentum: bool = {
+            let fdv_delta = db.fdv_delta_recent(mint.as_str(), now_ts, 300).unwrap_or(0.0);
+            fdv >= 30_000.0       // mid cap minimum
+                && fdv <= 500_000.0   // not already graduated
+                && fdv_delta >= 15_000.0 // $15K+ absolute FDV gain in 5 min = real SOL
+                && signers >= 5       // some real holders
+        };
+
+        // Combined bypass
+        let strong_momentum: bool = early_snipe || conviction_momentum;
+
+        let sol_flow_5m = db.mint_sol_flow_5m(now_ts, mint).unwrap_or(0.0);
+        let real_sol_flow: bool = sol_flow_5m >= 0.05;
+
+        // New coin bypass — recently discovered with rising FDV, give it a chance
+        let new_coin_rising: bool = true_age_sec < 600
+            && fdv >= cfg.min_call_fdv_usd
+            && coins.get(mint).map(|s| s.score).unwrap_or(0) >= 50;
 
         // Snapshot heartbeat (don’t swallow errors)
         {
@@ -403,8 +449,110 @@ pub fn process_calls(
             }
         }
 
-        // 5) Spam guards (hard)
-        if signers == 0 && ev == 0 {
+        // ------------------------------------------------------------
+        // 5) Early deep scan for strong momentum coins
+        // ------------------------------------------------------------
+        if strong_momentum {
+            let total_scan_edges = db
+                .total_edges_for_mint_window(mint.as_str(), now_ts - 300, now_ts)
+                .unwrap_or(0);
+
+            if total_scan_edges > 10 {
+                let top_wallets_scan = db
+                    .top_wallets_for_mint_window(mint.as_str(), now_ts - 300, now_ts, 25)
+                    .unwrap_or_default();
+
+                let top1_scan_pct = if total_scan_edges > 0 {
+                    top_wallets_scan.get(0).map(|(_, e)| *e).unwrap_or(0) as f64
+                        / total_scan_edges as f64
+                } else {
+                    0.0
+                };
+
+                let mut has_bad_wallet = false;
+                let mut good_wallet_count = 0i64;
+
+                for (wallet, _) in top_wallets_scan.iter().take(10) {
+                    let score = db.wallet_score(wallet).unwrap_or(0);
+                    if score <= -50 {
+                        has_bad_wallet = true;
+                    }
+                    if score >= 100 {
+                        good_wallet_count += 1;
+                    }
+                }
+
+                if has_bad_wallet && top1_scan_pct > 0.20 {
+                    skip_and_maybe_demote(
+                        "DEEP_SCAN_BAD_WALLET",
+                        "wallet",
+                        mint,
+                        &mut dbg_skips_left,
+                        counters,
+                        coins,
+                        &mut remove_from_active,
+                        shadow_map,
+                        db,
+                        Some(fdv),
+                        cfg,
+                        now,
+                        now_ts,
+                        demote_shadow_secs,
+                    );
+                    continue;
+                }
+
+                if top1_scan_pct > 0.50 && total_scan_edges > 20 {
+                    skip_and_maybe_demote(
+                        "DEEP_SCAN_CONCENTRATION",
+                        "conc",
+                        mint,
+                        &mut dbg_skips_left,
+                        counters,
+                        coins,
+                        &mut remove_from_active,
+                        shadow_map,
+                        db,
+                        Some(fdv),
+                        cfg,
+                        now,
+                        now_ts,
+                        demote_shadow_secs,
+                    );
+                    continue;
+                }
+
+                if top_wallets_scan.len() < 3 && total_scan_edges > 50 {
+                    skip_and_maybe_demote(
+                        "DEEP_SCAN_WASH_TRADING",
+                        "conc",
+                        mint,
+                        &mut dbg_skips_left,
+                        counters,
+                        coins,
+                        &mut remove_from_active,
+                        shadow_map,
+                        db,
+                        Some(fdv),
+                        cfg,
+                        now,
+                        now_ts,
+                        demote_shadow_secs,
+                    );
+                    continue;
+                }
+
+                eprintln!(
+                    "DBG DEEP_SCAN PASS mint={} top1={:.2} good={}",
+                    crate::fmt::mint(mint),
+                    top1_scan_pct,
+                    good_wallet_count
+                );
+            }
+        }
+
+        // 5b) Spam guards (hard)
+        if signers == 0 && ev == 0 && tx5 < 20 && !strong_momentum && !real_sol_flow && !new_coin_rising {
             skip_and_maybe_demote(
                 "DEADZONE_NO_SIGNERS_NO_EVENTS",
                 "other",
@@ -424,7 +572,7 @@ pub fn process_calls(
             continue;
         }
 
-        if tx5 >= spoof_tx_min && signers <= spoof_signers_max {
+        if tx5 >= spoof_tx_min && signers <= spoof_signers_max && !strong_momentum && !real_sol_flow && !new_coin_rising {
             skip_and_maybe_demote(
                 "SPOOF_BUSY_LOW_SIGNERS",
                 "other",
@@ -469,7 +617,7 @@ pub fn process_calls(
             let refined_onchain_ok: bool =
                 signers > 0 || ev > 0 || signer_strength >= refined_min_signer_strength;
 
-            if !refined_onchain_ok {
+            if !refined_onchain_ok && !strong_momentum && !real_sol_flow && !new_coin_rising {
                 skip_and_maybe_demote(
                     "REFINED_ONCHAIN_WEAK",
                     "other",
@@ -522,7 +670,7 @@ pub fn process_calls(
                     if !in_momentum_warmup {
                         skip_and_maybe_demote(
                             "NO_SNAPSHOT_HISTORY_FOR_MOMENTUM",
-                            "other",
+                            "cooldown", // never demotes — coin just needs more time to build history
                             mint,
                             &mut dbg_skips_left,
                             counters,
@@ -543,7 +691,7 @@ pub fn process_calls(
         }
 
         // 8) Wallet delta (refined only)
-        if !gambol_ok && wallet_delta < wallet_delta_min {
+        if !gambol_ok && wallet_delta < wallet_delta_min && !strong_momentum && !real_sol_flow && !new_coin_rising {
             skip_and_maybe_demote(
                 "WALLET_DELTA_TOO_NEG",
                 "wallet",
@@ -564,9 +712,9 @@ pub fn process_calls(
         }
 
         // 9) Age rules
-        let revival_by_age_ok: bool = age_sec > soft_max_age_sec && signer_strength >= 25;
+        let revival_by_age_ok: bool = true_age_sec > soft_max_age_sec && signer_strength >= 25;
 
-        if age_sec > hard_max_age_sec {
+        if true_age_sec > hard_max_age_sec {
             skip_and_maybe_demote(
                 "AGE_TOO_OLD_HARD",
                 "other",
@@ -586,7 +734,7 @@ pub fn process_calls(
             continue;
         }
 
-        if age_sec > soft_max_age_sec && !revival_by_age_ok {
+        if true_age_sec > soft_max_age_sec && !revival_by_age_ok {
             skip_and_maybe_demote(
                 "AGE_TOO_OLD_SOFT",
                 "other",
@@ -606,7 +754,7 @@ pub fn process_calls(
             continue;
         }
 
-        if !gambol_ok && signer_strength < 10 {
+        if !gambol_ok && signer_strength < 10 && !strong_momentum && !real_sol_flow && !new_coin_rising {
             skip_and_maybe_demote(
                 "REFINED_TOO_FEW_REAL_SIGNERS",
                 "signer",
@@ -712,15 +860,16 @@ pub fn process_calls(
             continue;
         }
 
-        // Wallet quality (refined only)
+        // Wallet quality — always count ge10 for debug, but gate only applies when not
+        // in a strong-momentum bypass (refined lane only).
         let mut ge10_cnt: i64 = 0;
-        if !gambol_ok {
-            for (w, _) in top25.iter().take(10) {
-                if db.wallet_score(w).unwrap_or(0) >= 10 {
-                    ge10_cnt += 1;
-                }
+        for (w, _) in top25.iter().take(10) {
+            if db.wallet_score(w).unwrap_or(0) >= 10 {
+                ge10_cnt += 1;
             }
+        }
 
+        if !gambol_ok && !strong_momentum {
             if let Some((w0, _)) = top25.get(0) {
                 let veto_bad_min: bool = db.wallet_score(w0).unwrap_or(0) <= wallet_veto_score;
                 if veto_bad_min {
@@ -744,7 +893,7 @@ pub fn process_calls(
                 }
             }
 
-            if ge10_cnt < wallet_quality_min_ge10 {
+            if ge10_cnt < wallet_quality_min_ge10 && !strong_momentum && !real_sol_flow && !new_coin_rising {
                 skip_and_maybe_demote(
                     "WALLET_QUALITY_TOO_LOW",
                     "wallet",
@@ -762,12 +911,6 @@ pub fn process_calls(
                     demote_shadow_secs,
                 );
                 continue;
-            }
-        } else {
-            for (w, _) in top25.iter().take(10) {
-                if db.wallet_score(w).unwrap_or(0) >= 10 {
-                    ge10_cnt += 1;
-                }
             }
         }
 
@@ -905,10 +1048,10 @@ pub fn process_calls(
         // ------------------------------------------------------------
         // NEWBORN quality (pre-call, refined only)
         // ------------------------------------------------------------
-        if !gambol_ok && age_sec <= 180 {
+        if !gambol_ok && true_age_sec <= 180 {
             let eps: f64 = if signers > 0 { ev as f64 / signers as f64 } else { 0.0 };
 
-            if signers < min_signers_new || ev < min_events_new || eps < min_eps_new {
+            if (signers < min_signers_new || ev < min_events_new || eps < min_eps_new) && !strong_momentum && !real_sol_flow && !new_coin_rising {
                 skip_and_maybe_demote(
                     "NEWBORN_QUALITY",
                     "signer",
@@ -994,7 +1137,7 @@ pub fn process_calls(
         let (_uniq_src, _edges_total, edges_per_wallet) =
             db.mint_edge_stats_5m(now_ts, mint).unwrap_or((0, 0, 0.0));
 
-        let sol_flow_5m = db.mint_sol_flow_5m(now_ts, mint).unwrap_or(0.0);
+        // sol_flow_5m already computed above (early bypass flags)
 
         if top1_pct >= 0.30 {
             skip_and_maybe_demote(
@@ -1095,6 +1238,10 @@ pub fn process_calls(
         // ----- primary lane tag (ALWAYS ONE) -----
         let lane_tag: &str = if coins.get(mint).map(|s| s.whale_entry).unwrap_or(false) {
             "WHALE"
+        } else if early_snipe {
+            "SNIPE"
+        } else if conviction_momentum {
+            "CONVICTION"
         } else if coins.get(mint).map(|s| s.is_volume_spike).unwrap_or(false) {
             "SPIKE"
         } else if gambol_ok {
@@ -1142,6 +1289,8 @@ pub fn process_calls(
         let colored_line = match lane_tag {
             "GAMBOL" => crate::fmt::red(&line),
             "WHALE" => crate::fmt::green(&line),
+            "SNIPE" => crate::fmt::cyan(&line),
+            "CONVICTION" => crate::fmt::green(&line),
             "SPIKE" => crate::fmt::green(&line),
             "RECOVERY" => crate::fmt::yellow(&line),
             "REVIVE" => crate::fmt::yellow(&line),

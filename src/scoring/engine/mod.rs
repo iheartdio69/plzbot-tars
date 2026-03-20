@@ -62,9 +62,6 @@ pub fn score_and_manage(
     // 4) fill queue from scored coins
     fill_queue(cfg, coins, active, queue, market, shadow_map, &mut counters);
 
-    // 4.5) queue/watch-band heartbeat snapshots (lightweight FDV baselines)
-    active::snapshot_queue_heartbeat(coins, queue, market, db, now_ts, &mut counters);
-
     // 5) promote from queue into active
     promote_from_queue(
         cfg,
@@ -73,9 +70,14 @@ pub fn score_and_manage(
         queue,
         market,
         shadow_map,
+        db,
         now,
+        now_ts,
         &mut counters,
     );
+
+    // 5.5) queue/watch-band heartbeat snapshots (lightweight FDV baselines)
+    active::snapshot_queue_heartbeat(coins, queue, market, db, now_ts, &mut counters);
 
     // 6) process calls (returns mints shadowed-after-call)
     let shadowed_after_call = process_calls(

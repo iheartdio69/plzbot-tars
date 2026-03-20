@@ -43,11 +43,17 @@ pub async fn fetch_address_txs(
         // -----------------------------
         let permit = gov.acquire_enhanced().await;
 
-        let mut resp = match client.get(&url).send().await {
-            Ok(r) => r,
-            Err(e) => {
+        let mut resp = match tokio::time::timeout(
+            Duration::from_secs(15),
+            client.get(&url).send(),
+        ).await {
+            Ok(Ok(r)) => r,
+            Ok(Err(e)) => {
                 eprintln!("DBG helius client: send err={:?} url={}", e, url);
-                // permit drops here automatically
+                continue;
+            }
+            Err(_) => {
+                eprintln!("DBG helius client: timeout url={}", url);
                 continue;
             }
         };
@@ -74,11 +80,17 @@ pub async fn fetch_address_txs(
             // -----------------------------
             let permit2 = gov.acquire_enhanced().await;
 
-            resp = match client.get(&url).send().await {
-                Ok(r) => r,
-                Err(e2) => {
+            resp = match tokio::time::timeout(
+                Duration::from_secs(15),
+                client.get(&url).send(),
+            ).await {
+                Ok(Ok(r)) => r,
+                Ok(Err(e2)) => {
                     eprintln!("DBG helius client: retry send err={:?} url={}", e2, url);
-                    // permit2 drops here
+                    continue;
+                }
+                Err(_) => {
+                    eprintln!("DBG helius client: retry timeout url={}", url);
                     continue;
                 }
             };

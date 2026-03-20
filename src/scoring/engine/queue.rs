@@ -66,6 +66,17 @@ pub fn fill_queue(
             continue;
         }
 
+        let tx5 = ms.tx_5m.unwrap_or(0);
+        let mem_signers = st.unique_signers_5m as u64;
+
+        // Only flag extreme bots — high tx with almost zero wallets
+        if tx5 >= 500 && mem_signers <= 2 {
+            continue; // obvious bot
+        }
+        if tx5 >= 200 && mem_signers == 0 {
+            continue; // zero wallets is suspicious
+        }
+
         // ------------------------------------------------------------
         // 2) Score threshold
         // ------------------------------------------------------------

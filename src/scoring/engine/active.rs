@@ -51,7 +51,7 @@ pub fn update_active_list(
 ///   - AND (idle >= idle_sec OR dwell >= max_dwell)
 /// - Sorted by oldest last_activity_ts first, then lowest score
 pub fn rotate_least_active(
-    _cfg: &Config,
+    cfg: &Config,
     coins: &mut HashMap<String, CoinState>,
     active: &mut Vec<String>,
     queue: &mut VecDeque<String>,
@@ -59,72 +59,65 @@ pub fn rotate_least_active(
     now: u64,
     counters: &mut Counters,
 ) {
-    // tunables
-    let k: usize = 3;
-    let min_dwell: u64 = 45;
-    let idle_sec: u64 = 20;
-    let max_dwell: u64 = 3 * 60;
-    let rotate_shadow_secs: u64 = 45;
+    let _ = shadow_map;
+    let target = cfg.max_active_coins.max(10);
 
-    if active.is_empty() {
-        return;
-    }
+    // Always fill empty slots first — best scored first
+    while active.len() < target {
+        let best_pos = queue
+            .iter()
+            .enumerate()
+            .max_by_key(|(_, m)| coins.get(*m).map(|s| s.score).unwrap_or(0))
+            .map(|(i, _)| i);
 
-    // snapshot queued set so we don't duplicate
-    let queued: HashSet<String> = queue.iter().cloned().collect();
-
-    // Pick eligible (idle + had a chance, or force rotate)
-    let mut eligible: Vec<(String, u64, i32)> = Vec::new();
-    for mint in active.iter() {
-        let Some(st) = coins.get(mint) else { continue };
-
-        let dwell: u64 = now.saturating_sub(st.active_since);
-        let idle: u64 = now.saturating_sub(st.last_activity_ts);
-        let force_rotate: bool = dwell >= max_dwell;
-
-        if st.active && dwell >= min_dwell && (idle >= idle_sec || force_rotate) {
-            eligible.push((mint.clone(), st.last_activity_ts, st.score));
+        match best_pos {
+            Some(pos) => {
+                let mint = queue.remove(pos).unwrap();
+                if let Some(st) = coins.get_mut(&mint) {
+                    st.active = true;
+                    st.active_since = now;
+                }
+                active.push(mint);
+            }
+            None => break,
         }
     }
 
-    if eligible.is_empty() {
-        return;
-    }
+    // Merit swap — replace worst with best if significantly better
+    if !queue.is_empty() && active.len() >= target {
+        let worst_score = active
+            .iter()
+            .map(|m| coins.get(m).map(|s| s.score).unwrap_or(0))
+            .min()
+            .unwrap_or(0);
 
-    // Oldest activity first, then lowest score
-    eligible.sort_by(|a, b| a.1.cmp(&b.1).then(a.2.cmp(&b.2)));
+        let best_queued = queue
+            .iter()
+            .enumerate()
+            .max_by_key(|(_, m)| coins.get(*m).map(|s| s.score).unwrap_or(0));
 
-    let mut rotated: usize = 0;
-
-    for (mint, _last_act, _score) in eligible.into_iter().take(k) {
-        // remove from active
-        active.retain(|x| x != &mint);
-
-        // mark inactive + enqueue
-        if let Some(st) = coins.get_mut(&mint) {
-            st.active = false;
-            st.queued_since = now;
-        }
-
-        // Prevent immediate promote ping-pong
-        shadow::shadow_for(shadow_map, mint.as_str(), now, rotate_shadow_secs);
-
-        // Avoid duplicates in queue
-        if !queued.contains(&mint) {
-            queue.push_back(mint);
-            rotated += 1;
-        }
-    }
-
-    if rotated > 0 {
-        counters.queue_rotated += rotated as u64;
-        if debug_enabled() {
-            eprintln!(
-                "DBG rotate_least_active rotated={} active_now={} queue_now={}",
-                rotated,
-                active.len(),
-                queue.len()
-            );
+        if let Some((pos, best_mint)) = best_queued {
+            let best_score = coins.get(best_mint).map(|s| s.score).unwrap_or(0);
+            if best_score > worst_score + 50 {
+                let new_mint = queue.remove(pos).unwrap();
+                if let Some(worst_mint) = active
+                    .iter()
+                    .min_by_key(|m| coins.get(*m).map(|s| s.score).unwrap_or(0))
+                    .cloned()
+                {
+                    active.retain(|m| m != &worst_mint);
+                    if let Some(st) = coins.get_mut(&worst_mint) {
+                        st.active = false;
+                    }
+                    queue.push_front(worst_mint);
+                }
+                if let Some(st) = coins.get_mut(&new_mint) {
+                    st.active = true;
+                    st.active_since = now;
+                }
+                active.push(new_mint);
+                counters.queue_rotated += 1;
+            }
         }
     }
 }
@@ -214,6 +207,7 @@ pub fn snapshot_queue_heartbeat(
 /// - requires market presence (price-first model)
 /// - clears queued_since on promotion
 /// - avoids active duplicates
+/// - sorted: whale/spike/recovery emergency boost + score
 pub fn promote_from_queue(
     cfg: &Config,
     coins: &mut HashMap<String, CoinState>,
@@ -221,16 +215,54 @@ pub fn promote_from_queue(
     queue: &mut VecDeque<String>,
     market: &MarketCache,
     shadow_map: &mut shadow::ShadowMap,
+    db: &mut Db,
     now: u64,
+    now_ts: i64,
     counters: &mut Counters,
 ) {
-    while active.len() < cfg.max_active_coins {
-        let Some(mint) = queue.pop_front() else { break };
+    if active.len() >= cfg.max_active_coins {
+        return;
+    }
 
-        let Some(st) = coins.get(&mint) else { continue };
+    let slots = cfg.max_active_coins - active.len();
+
+    let mut heat_scores: Vec<(String, i64)> = queue
+        .iter()
+        .map(|mint| {
+            let score = coins.get(mint).map(|s| s.score as i64).unwrap_or(0);
+
+            let st = coins.get(mint);
+            let emergency_boost: i64 = if st.map(|s| s.whale_entry).unwrap_or(false) {
+                10_000
+            } else if st.map(|s| s.is_volume_spike).unwrap_or(false) {
+                5_000
+            } else if st.map(|s| s.is_recovery).unwrap_or(false) {
+                2_000
+            } else {
+                0
+            };
+
+            (mint.clone(), emergency_boost + score)
+        })
+        .collect();
+
+    heat_scores.sort_by(|a, b| b.1.cmp(&a.1));
+
+    let mut promoted = 0usize;
+
+    for (mint, heat) in heat_scores.iter() {
+        if promoted >= slots || active.len() >= cfg.max_active_coins {
+            break;
+        }
+
+        let Some(st) = coins.get(mint) else {
+            queue.retain(|m| m != mint);
+            continue;
+        };
 
         // TTL drop
         if st.queued_since > 0 && now.saturating_sub(st.queued_since) > QUEUE_TTL_SEC {
+            queue.retain(|m| m != mint);
             counters.queue_dropped_ttl += 1;
             continue;
         }
@@ -241,17 +273,20 @@ pub fn promote_from_queue(
         }
 
         // Must have market data (price-first)
-        if !market.map.contains_key(&mint) {
+        if !market.map.contains_key(mint) {
             continue;
         }
 
         // Avoid duplicates in active
-        if active.iter().any(|x| x == &mint) {
+        if active.iter().any(|x| x == mint) {
+            queue.retain(|m| m != mint);
             continue;
         }
 
         active.push(mint.clone());
-        if let Some(stm) = coins.get_mut(&mint) {
+        queue.retain(|m| m != mint);
+
+        if let Some(stm) = coins.get_mut(mint) {
             stm.active = true;
             stm.active_since = now;
             stm.queued_since = 0;
@@ -259,8 +294,11 @@ pub fn promote_from_queue(
 
         println!(
             "{}",
-            crate::fmt::active_line(&mint, coins.get(&mint).map(|s| s.score).unwrap_or(0))
+            crate::fmt::active_line(mint, coins.get(mint).map(|s| s.score).unwrap_or(0))
         );
+
+
+        promoted += 1;
     }
 }
 

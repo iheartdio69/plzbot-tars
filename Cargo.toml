@@ -14,8 +14,15 @@ default-run = "solana_meme"
 name = "brain"
 path = "src/bin/brain.rs"
 
+[[bin]]
+name = "dashboard"
+path = "src/bin/dashboard.rs"
+
 [dependencies]
+axum = "0.7"
 anyhow = "1"
+base64 = "0.21"
+bincode = "1"
 bs58 = "0.5.1"
 chrono = { version = "0.4", features = ["clock"] }
 clap = { version = "4.5.54", features = ["derive"] }

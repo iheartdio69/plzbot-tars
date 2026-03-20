@@ -1,0 +1,896 @@
+[38;5;82m[1m
+██╗███╗   ██╗██╗████████╗██╗ █████╗ ██╗     ██╗███████╗███████╗
+██║████╗  ██║██║╚══██╔══╝██║██╔══██╗██║     ██║╚══███╔╝██╔════╝
+██║██╔██╗ ██║██║   ██║   ██║███████║██║     ██║  ███╔╝ █████╗  
+██║██║╚██╗██║██║   ██║   ██║██╔══██║██║     ██║ ███╔╝  ██╔══╝  
+██║██║ ╚████║██║   ██║   ██║██║  ██║███████╗██║███████╗███████╗
+╚═╝╚═╝  ╚═══╝╚═╝   ╚═╝   ╚═╝╚═╝  ╚═╝╚══════╝╚═╝╚══════╝╚══════╝   
+
+   INITIALIZING SOLANA MEME ENGINE
+[0m
+CFG call band: min_call_fdv_usd=15000 max_call_fdv_usd=3000000
+DB sqlite_path = ./data/STUPID_MAIN_DB_DO_NOT_TOUCH.sqlite
+🗄️ Db::open path(arg) = ./data/STUPID_MAIN_DB_DO_NOT_TOUCH.sqlite
+🗄️ Db::open path(abs) = /Users/murdersnake/solana_meme/data/STUPID_MAIN_DB_DO_NOT_TOUCH.sqlite
+[38;5;82m🚀 Solana Meme Sniper started[0m (Ctrl+C to stop)
+🟣 pumpportal connecting: wss://pumpportal.fun/api/data
+✅ pumpportal connected
+[38;5;117m🕵️ discovery[0m got=3 added=3 coins=0
+DBG watchlist promote: added=1 pruned=1 (min_score=50 keep=10)
+DBG helius ingest: base=https://api.helius.xyz/v0/addresses api_key_len=36 wallets=10
+✅ ACTIVE: [1m[38;5;121mEj4qsSA5ZvSDGgeasYxukdMF6nuFDNgeohrd9x5ea1Mo[0m (score=[38;5;82m547[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mEj4qsSA5ZvSDGgeasYxukdMF6nuFDNgeohrd9x5ea1Mo[0m heat=10547
+✅ ACTIVE: [1m[38;5;121m5AxtLa26UcT61yURDvoSbK2XRU3PL2xwWFkzR4TLsceV[0m (score=[38;5;82m452[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m5AxtLa26UcT61yURDvoSbK2XRU3PL2xwWFkzR4TLsceV[0m heat=10452
+✅ ACTIVE: [1m[38;5;121m4oNgXRWLuCN9nfWpPwnerZxWvjsCWCPk6iJXLdFH26h6[0m (score=[38;5;141m38[0m)
+DBG ACTIVE_ROTATION start=3 removed=0 end=3
+[38;5;226m🧮 scoring[0m [38;5;117mconsidered=497[0m [2mcalled=0[0m skips: [38;5;208mfdv=3[0m [2mconc=0[0m [2mwallet=0[0m [2mcooldown=0[0m [2msigner=0[0m [2mother=0[0m [2mqueue_dropped=0[0m [38;5;117mactive=3[0m [2mqueue=0[0m
+DBG outcomes: now_ts=1773823215
+DBG outcomes: pending=0
+[38;5;208m🫀 hb[0m local=2:40:41 AM coins=247 active=3 queue=0 calls=0 discovered=3
+[38;5;205m🟣 pumpportal[0m added=1 coins=248
+DBG helius ingest: base=https://api.helius.xyz/v0/addresses api_key_len=36 wallets=10
+DBG per_coin ingest: base=https://api.helius.xyz/v0/addresses api_key_len=36 targets=3 active=3 queue=0 top_n_hot=0
+✅ ACTIVE: [1m[38;5;121m2hAFnvmAcj7meNZYDxjK7hBdCWnDrfXt129CH1V8pump[0m (score=[38;5;82m880[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m2hAFnvmAcj7meNZYDxjK7hBdCWnDrfXt129CH1V8pump[0m heat=18880
+✅ ACTIVE: [1m[38;5;121mDekcnehFjbKxbzpZcqFYWm4oGREeyaw1qQYdw3DKsKSW[0m (score=[38;5;82m817[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mDekcnehFjbKxbzpZcqFYWm4oGREeyaw1qQYdw3DKsKSW[0m heat=18817
+✅ ACTIVE: [1m[38;5;121mG5bRLvVFv3AFnGrJvXgqzoyKcVsbYymvV96XFZVmJtKx[0m (score=[38;5;82m875[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mG5bRLvVFv3AFnGrJvXgqzoyKcVsbYymvV96XFZVmJtKx[0m heat=14875
+✅ ACTIVE: [1m[38;5;121m5AxtLa26UcT61yURDvoSbK2XRU3PL2xwWFkzR4TLsceV[0m (score=[38;5;82m471[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m5AxtLa26UcT61yURDvoSbK2XRU3PL2xwWFkzR4TLsceV[0m heat=14471
+✅ ACTIVE: [1m[38;5;121mdSPcU1WwgMq2nNHpvZKBYjNzNHi35YWmo3uoCmWUGYc[0m (score=[38;5;82m1033[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mdSPcU1WwgMq2nNHpvZKBYjNzNHi35YWmo3uoCmWUGYc[0m heat=13033
+✅ ACTIVE: [1m[38;5;121m4SwEr9hNFf6WR7rNUoUYkrASG5ujW3SdzkFJKcKxqDJY[0m (score=[38;5;82m817[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m4SwEr9hNFf6WR7rNUoUYkrASG5ujW3SdzkFJKcKxqDJY[0m heat=12817
+✅ ACTIVE: [1m[38;5;121mGfBLBbHbsAzdjF17jHRSEzfaDi99bxYqSH1BTKSjmPZu[0m (score=[38;5;82m775[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mGfBLBbHbsAzdjF17jHRSEzfaDi99bxYqSH1BTKSjmPZu[0m heat=12775
+✅ ACTIVE: [1m[38;5;121m5QRdL22gjbbe1AqopF4pe6dG2yHDY1iCawzgWk7uSk1Y[0m (score=[38;5;82m850[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m5QRdL22gjbbe1AqopF4pe6dG2yHDY1iCawzgWk7uSk1Y[0m heat=10850
+✅ ACTIVE: [1m[38;5;121mDTDkxXoBmmyyrGBpAZbegL8z9tBoEYi58rZFEChf6Xiu[0m (score=[38;5;82m829[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mDTDkxXoBmmyyrGBpAZbegL8z9tBoEYi58rZFEChf6Xiu[0m heat=10829
+✅ ACTIVE: [1m[38;5;121moALA4sNDW3Qr4PjZ984R8LPpyuN5gSknuUPGbfGpump[0m (score=[38;5;82m725[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121moALA4sNDW3Qr4PjZ984R8LPpyuN5gSknuUPGbfGpump[0m heat=10725
+✅ ACTIVE: [1m[38;5;121m86UBB8g7z9jMZ1GYxTEbiHoLwHWu7fTxuLq72nYaTH7E[0m (score=[38;5;82m723[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m86UBB8g7z9jMZ1GYxTEbiHoLwHWu7fTxuLq72nYaTH7E[0m heat=10723
+✅ ACTIVE: [1m[38;5;121m48X29D1jnuKbuRVeUXKAUzEHB82vYTuwxWS5VrkY5bq2[0m (score=[38;5;82m720[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m48X29D1jnuKbuRVeUXKAUzEHB82vYTuwxWS5VrkY5bq2[0m heat=10720
+✅ ACTIVE: [1m[38;5;121m4A4Tb7fGz87M8DqZBTTf3bGV6wxXrzkabVEcsriooSEG[0m (score=[38;5;82m716[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m4A4Tb7fGz87M8DqZBTTf3bGV6wxXrzkabVEcsriooSEG[0m heat=10716
+✅ ACTIVE: [1m[38;5;121mT7NMueSt3Dm1Mrktgf83q58yQ5X3fX3VpC2qjUUpump[0m (score=[38;5;82m710[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mT7NMueSt3Dm1Mrktgf83q58yQ5X3fX3VpC2qjUUpump[0m heat=10710
+✅ ACTIVE: [1m[38;5;121m4miB5aLzD5vhhj2QAzca5TbvyLf9okgnugHoGehmpump[0m (score=[38;5;82m708[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m4miB5aLzD5vhhj2QAzca5TbvyLf9okgnugHoGehmpump[0m heat=10708
+✅ ACTIVE: [1m[38;5;121mfrPYyQ5C9cJtmiS7anZpE85eYXZvKCqMf2TdrdbfLso[0m (score=[38;5;82m702[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mfrPYyQ5C9cJtmiS7anZpE85eYXZvKCqMf2TdrdbfLso[0m heat=10702
+✅ ACTIVE: [1m[38;5;121mFZvhhggPbBn5j1CiSRUvy4iD9cENpWdWtAFF9KAupump[0m (score=[38;5;82m692[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mFZvhhggPbBn5j1CiSRUvy4iD9cENpWdWtAFF9KAupump[0m heat=10692
+✅ ACTIVE: [1m[38;5;121m3kCXgBSP7FkW4kA5GcwPVgFDbpA7pBdVF1VRETKvpump[0m (score=[38;5;82m691[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m3kCXgBSP7FkW4kA5GcwPVgFDbpA7pBdVF1VRETKvpump[0m heat=10691
+✅ ACTIVE: [1m[38;5;121mjUpTxkEnajV4u71FgRJ49oiWGUkQTsKAWJAVRhWRnQV[0m (score=[38;5;82m630[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mjUpTxkEnajV4u71FgRJ49oiWGUkQTsKAWJAVRhWRnQV[0m heat=10630
+✅ ACTIVE: [1m[38;5;121m3zomtMhRRsBpLZeJLS86fgueXE7xAhoN8dnymNh8pump[0m (score=[38;5;82m612[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m3zomtMhRRsBpLZeJLS86fgueXE7xAhoN8dnymNh8pump[0m heat=10612
+✅ ACTIVE: [1m[38;5;121m7BS2WtZgT5J8TGeWCWPwLPwdmc8W81xFCGHNesRLB1z6[0m (score=[38;5;82m597[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m7BS2WtZgT5J8TGeWCWPwLPwdmc8W81xFCGHNesRLB1z6[0m heat=10597
+✅ ACTIVE: [1m[38;5;121m4p7psQtAxmMVSrcE419aRSE4GJdyJi697zvpUgUbTCd1[0m (score=[38;5;82m580[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m4p7psQtAxmMVSrcE419aRSE4GJdyJi697zvpUgUbTCd1[0m heat=10580
+✅ ACTIVE: [1m[38;5;121mG4QRtYNRPyxdKwcAqqW3xSeEynDDxEyRvrDT9FJEpump[0m (score=[38;5;82m497[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mG4QRtYNRPyxdKwcAqqW3xSeEynDDxEyRvrDT9FJEpump[0m heat=10497
+✅ ACTIVE: [1m[38;5;121mFgr6ZejzV1nguSdkt3ugh5AdzucdHPaMsR2dCF2cpump[0m (score=[38;5;82m473[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mFgr6ZejzV1nguSdkt3ugh5AdzucdHPaMsR2dCF2cpump[0m heat=10473
+✅ ACTIVE: [1m[38;5;121m412zDygnwP9DzitnQVgRKUFFTDmrYScFch6P2k39pump[0m (score=[38;5;82m466[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m412zDygnwP9DzitnQVgRKUFFTDmrYScFch6P2k39pump[0m heat=10466
+✅ ACTIVE: [1m[38;5;121mBuBRWo1rvrxXBvZY6uiQdbUZhkG9i51feRxeTPTMpump[0m (score=[38;5;82m457[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mBuBRWo1rvrxXBvZY6uiQdbUZhkG9i51feRxeTPTMpump[0m heat=10457
+✅ ACTIVE: [1m[38;5;121m93VXFhKsGXsraivwdwAwoVXHKd4U1TFL64oQYpVjpump[0m (score=[38;5;82m449[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m93VXFhKsGXsraivwdwAwoVXHKd4U1TFL64oQYpVjpump[0m heat=10449
+✅ ACTIVE: [1m[38;5;121m5yC9BM8KUsJTPbWPLfA2N8qH1s9V8DQ3Vcw1G6Jdpump[0m (score=[38;5;82m449[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m5yC9BM8KUsJTPbWPLfA2N8qH1s9V8DQ3Vcw1G6Jdpump[0m heat=10449
+✅ ACTIVE: [1m[38;5;121m7k6t5KTdf7gp6THKL982TseXYoG3hQbn6Bqginsspump[0m (score=[38;5;82m447[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m7k6t5KTdf7gp6THKL982TseXYoG3hQbn6Bqginsspump[0m heat=10447
+✅ ACTIVE: [1m[38;5;121mDG1g5RY2kmAkfgnzrtvtPKD3iGJdq15zE9pFSHg7pump[0m (score=[38;5;82m432[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mDG1g5RY2kmAkfgnzrtvtPKD3iGJdq15zE9pFSHg7pump[0m heat=10432
+DBG ACTIVE_ROTATION start=30 removed=2 end=28
+[38;5;226m🧮 scoring[0m [38;5;117mconsidered=714[0m [2mcalled=0[0m skips: [38;5;208mfdv=2[0m [38;5;141mconc=1[0m [2mwallet=0[0m [2mcooldown=0[0m [2msigner=0[0m [2mother=25[0m [2mqueue_dropped=0[0m [38;5;82mactive=28[0m [38;5;226mqueue=18[0m
+[38;5;208m🫀 hb[0m local=2:42:47 AM coins=342 active=28 queue=18 calls=0 discovered=4
+[38;5;205m🟣 pumpportal[0m added=17 coins=359
+DBG watchlist promote: added=1 pruned=1 (min_score=50 keep=10)
+DBG helius ingest: base=https://api.helius.xyz/v0/addresses api_key_len=36 wallets=10
+DBG per_coin ingest: base=https://api.helius.xyz/v0/addresses api_key_len=36 targets=28 active=28 queue=0 top_n_hot=0
+✅ ACTIVE: [1m[38;5;121mDTDkxXoBmmyyrGBpAZbegL8z9tBoEYi58rZFEChf6Xiu[0m (score=[38;5;82m5777[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mDTDkxXoBmmyyrGBpAZbegL8z9tBoEYi58rZFEChf6Xiu[0m heat=23777
+✅ ACTIVE: [1m[38;5;121m3kCXgBSP7FkW4kA5GcwPVgFDbpA7pBdVF1VRETKvpump[0m (score=[38;5;82m879[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m3kCXgBSP7FkW4kA5GcwPVgFDbpA7pBdVF1VRETKvpump[0m heat=14879
+✅ ACTIVE: [1m[38;5;121m48X29D1jnuKbuRVeUXKAUzEHB82vYTuwxWS5VrkY5bq2[0m (score=[38;5;82m5425[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m48X29D1jnuKbuRVeUXKAUzEHB82vYTuwxWS5VrkY5bq2[0m heat=13425
+✅ ACTIVE: [1m[38;5;121mT7NMueSt3Dm1Mrktgf83q58yQ5X3fX3VpC2qjUUpump[0m (score=[38;5;82m592[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mT7NMueSt3Dm1Mrktgf83q58yQ5X3fX3VpC2qjUUpump[0m heat=12592
+✅ ACTIVE: [1m[38;5;121m7k6t5KTdf7gp6THKL982TseXYoG3hQbn6Bqginsspump[0m (score=[38;5;82m465[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m7k6t5KTdf7gp6THKL982TseXYoG3hQbn6Bqginsspump[0m heat=12465
+✅ ACTIVE: [1m[38;5;121mBuBRWo1rvrxXBvZY6uiQdbUZhkG9i51feRxeTPTMpump[0m (score=[38;5;82m440[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mBuBRWo1rvrxXBvZY6uiQdbUZhkG9i51feRxeTPTMpump[0m heat=12440
+✅ ACTIVE: [1m[38;5;121mdSPcU1WwgMq2nNHpvZKBYjNzNHi35YWmo3uoCmWUGYc[0m (score=[38;5;82m1065[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mdSPcU1WwgMq2nNHpvZKBYjNzNHi35YWmo3uoCmWUGYc[0m heat=11065
+✅ ACTIVE: [1m[38;5;121m9D4NQ5HWJzhCaEbZcoxX3GXWg2SczjLfArcT5rsqwMiG[0m (score=[38;5;82m766[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m9D4NQ5HWJzhCaEbZcoxX3GXWg2SczjLfArcT5rsqwMiG[0m heat=10766
+✅ ACTIVE: [1m[38;5;121mjUpTxkEnajV4u71FgRJ49oiWGUkQTsKAWJAVRhWRnQV[0m (score=[38;5;82m755[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mjUpTxkEnajV4u71FgRJ49oiWGUkQTsKAWJAVRhWRnQV[0m heat=10755
+✅ ACTIVE: [1m[38;5;121m6A88CUpdtjCG4edpzjSVwAdgCZC6Z7eQ5BvMDhLCVnER[0m (score=[38;5;82m737[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m6A88CUpdtjCG4edpzjSVwAdgCZC6Z7eQ5BvMDhLCVnER[0m heat=10737
+✅ ACTIVE: [1m[38;5;121mDekcnehFjbKxbzpZcqFYWm4oGREeyaw1qQYdw3DKsKSW[0m (score=[38;5;82m680[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mDekcnehFjbKxbzpZcqFYWm4oGREeyaw1qQYdw3DKsKSW[0m heat=10680
+✅ ACTIVE: [1m[38;5;121m2Zd7h9TPgwaKTqgb9nP7ZmVCzh34bZfpHvk6LjUCVqgr[0m (score=[38;5;82m635[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m2Zd7h9TPgwaKTqgb9nP7ZmVCzh34bZfpHvk6LjUCVqgr[0m heat=10635
+✅ ACTIVE: [1m[38;5;121mGaW3PKpNZ4Biq9xnqQRCaR87sikapd8rzGsV5awJpVUv[0m (score=[38;5;82m617[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mGaW3PKpNZ4Biq9xnqQRCaR87sikapd8rzGsV5awJpVUv[0m heat=10617
+✅ ACTIVE: [1m[38;5;121mGHKFvqjgssASm8yMgr1DgJVCf7geVhnGUfkTAn9PpRDF[0m (score=[38;5;82m616[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mGHKFvqjgssASm8yMgr1DgJVCf7geVhnGUfkTAn9PpRDF[0m heat=10616
+✅ ACTIVE: [1m[38;5;121m8LxD9ughBJq7H3ry3vdKh9LRTHZhvHfkVzVAoFiF6H5g[0m (score=[38;5;82m601[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m8LxD9ughBJq7H3ry3vdKh9LRTHZhvHfkVzVAoFiF6H5g[0m heat=10601
+✅ ACTIVE: [1m[38;5;121m4K4qF5QrX8KfY4qAh5JobgGwaZShE13591C8JUrnj7gi[0m (score=[38;5;82m584[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m4K4qF5QrX8KfY4qAh5JobgGwaZShE13591C8JUrnj7gi[0m heat=10584
+✅ ACTIVE: [1m[38;5;121mBDJYXKWfFD3JGUZCCvwq9ff3t7gsr9YSoKFvPioeVYNr[0m (score=[38;5;82m584[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mBDJYXKWfFD3JGUZCCvwq9ff3t7gsr9YSoKFvPioeVYNr[0m heat=10584
+✅ ACTIVE: [1m[38;5;121m2YCwUZ68qRyJHRw1dg4mExakoKg6RFSYQ2WBod5ZAHnY[0m (score=[38;5;82m580[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m2YCwUZ68qRyJHRw1dg4mExakoKg6RFSYQ2WBod5ZAHnY[0m heat=10580
+✅ ACTIVE: [1m[38;5;121m8Y1ksft1arGLFgqJ89aH7Ezj16C3MAqQpedjFPMrpump[0m (score=[38;5;82m541[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m8Y1ksft1arGLFgqJ89aH7Ezj16C3MAqQpedjFPMrpump[0m heat=10541
+DBG ACTIVE_ROTATION start=30 removed=2 end=28
+[38;5;226m🧮 scoring[0m [38;5;117mconsidered=1102[0m [2mcalled=0[0m skips: [2mfdv=0[0m [38;5;141mconc=2[0m [2mwallet=0[0m [2mcooldown=0[0m [2msigner=0[0m [2mother=28[0m [2mqueue_dropped=0[0m [38;5;82mactive=28[0m [38;5;196mqueue=52[0m
+DBG outcomes: now_ts=1773823367
+DBG outcomes: pending=0
+[38;5;208m🫀 hb[0m local=2:47:44 AM coins=536 active=28 queue=52 calls=0 discovered=21
+[38;5;205m🟣 pumpportal[0m added=73 coins=609
+[38;5;117m🕵️ discovery[0m got=4 added=1 coins=609
+DBG watchlist promote: added=1 pruned=1 (min_score=50 keep=10)
+DBG helius ingest: base=https://api.helius.xyz/v0/addresses api_key_len=36 wallets=10
+DBG per_coin ingest: base=https://api.helius.xyz/v0/addresses api_key_len=36 targets=28 active=28 queue=0 top_n_hot=0
+✅ ACTIVE: [1m[38;5;121mDTDkxXoBmmyyrGBpAZbegL8z9tBoEYi58rZFEChf6Xiu[0m (score=[38;5;82m5837[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mDTDkxXoBmmyyrGBpAZbegL8z9tBoEYi58rZFEChf6Xiu[0m heat=23837
+✅ ACTIVE: [1m[38;5;121m5QRdL22gjbbe1AqopF4pe6dG2yHDY1iCawzgWk7uSk1Y[0m (score=[38;5;82m5725[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m5QRdL22gjbbe1AqopF4pe6dG2yHDY1iCawzgWk7uSk1Y[0m heat=23725
+✅ ACTIVE: [1m[38;5;121m4SwEr9hNFf6WR7rNUoUYkrASG5ujW3SdzkFJKcKxqDJY[0m (score=[38;5;82m4585[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m4SwEr9hNFf6WR7rNUoUYkrASG5ujW3SdzkFJKcKxqDJY[0m heat=22585
+✅ ACTIVE: [1m[38;5;121mGfBLBbHbsAzdjF17jHRSEzfaDi99bxYqSH1BTKSjmPZu[0m (score=[38;5;82m3865[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mGfBLBbHbsAzdjF17jHRSEzfaDi99bxYqSH1BTKSjmPZu[0m heat=21865
+✅ ACTIVE: [1m[38;5;121mfrPYyQ5C9cJtmiS7anZpE85eYXZvKCqMf2TdrdbfLso[0m (score=[38;5;82m2250[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mfrPYyQ5C9cJtmiS7anZpE85eYXZvKCqMf2TdrdbfLso[0m heat=20250
+✅ ACTIVE: [1m[38;5;121m4A4Tb7fGz87M8DqZBTTf3bGV6wxXrzkabVEcsriooSEG[0m (score=[38;5;82m1650[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m4A4Tb7fGz87M8DqZBTTf3bGV6wxXrzkabVEcsriooSEG[0m heat=19650
+✅ ACTIVE: [1m[38;5;121m86UBB8g7z9jMZ1GYxTEbiHoLwHWu7fTxuLq72nYaTH7E[0m (score=[38;5;82m1510[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m86UBB8g7z9jMZ1GYxTEbiHoLwHWu7fTxuLq72nYaTH7E[0m heat=19510
+✅ ACTIVE: [1m[38;5;121mFZvhhggPbBn5j1CiSRUvy4iD9cENpWdWtAFF9KAupump[0m (score=[38;5;82m1305[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mFZvhhggPbBn5j1CiSRUvy4iD9cENpWdWtAFF9KAupump[0m heat=19305
+✅ ACTIVE: [1m[38;5;121m2hAFnvmAcj7meNZYDxjK7hBdCWnDrfXt129CH1V8pump[0m (score=[38;5;82m1240[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m2hAFnvmAcj7meNZYDxjK7hBdCWnDrfXt129CH1V8pump[0m heat=19240
+✅ ACTIVE: [1m[38;5;121mG5bRLvVFv3AFnGrJvXgqzoyKcVsbYymvV96XFZVmJtKx[0m (score=[38;5;82m810[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mG5bRLvVFv3AFnGrJvXgqzoyKcVsbYymvV96XFZVmJtKx[0m heat=18810
+✅ ACTIVE: [1m[38;5;121m13bhNTnX4bbqrB42MGZRtHMdT15ChwrdBX8VBdfCjGQu[0m (score=[38;5;82m725[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m13bhNTnX4bbqrB42MGZRtHMdT15ChwrdBX8VBdfCjGQu[0m heat=18725
+✅ ACTIVE: [1m[38;5;121m4p7psQtAxmMVSrcE419aRSE4GJdyJi697zvpUgUbTCd1[0m (score=[38;5;82m710[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m4p7psQtAxmMVSrcE419aRSE4GJdyJi697zvpUgUbTCd1[0m heat=18710
+✅ ACTIVE: [1m[38;5;121m4K4qF5QrX8KfY4qAh5JobgGwaZShE13591C8JUrnj7gi[0m (score=[38;5;82m733[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m4K4qF5QrX8KfY4qAh5JobgGwaZShE13591C8JUrnj7gi[0m heat=14733
+✅ ACTIVE: [1m[38;5;121m48X29D1jnuKbuRVeUXKAUzEHB82vYTuwxWS5VrkY5bq2[0m (score=[38;5;82m5605[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m48X29D1jnuKbuRVeUXKAUzEHB82vYTuwxWS5VrkY5bq2[0m heat=13605
+✅ ACTIVE: [1m[38;5;121m3kCXgBSP7FkW4kA5GcwPVgFDbpA7pBdVF1VRETKvpump[0m (score=[38;5;82m549[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m3kCXgBSP7FkW4kA5GcwPVgFDbpA7pBdVF1VRETKvpump[0m heat=12549
+✅ ACTIVE: [1m[38;5;121mT7NMueSt3Dm1Mrktgf83q58yQ5X3fX3VpC2qjUUpump[0m (score=[38;5;82m510[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mT7NMueSt3Dm1Mrktgf83q58yQ5X3fX3VpC2qjUUpump[0m heat=12510
+✅ ACTIVE: [1m[38;5;121m7k6t5KTdf7gp6THKL982TseXYoG3hQbn6Bqginsspump[0m (score=[38;5;82m485[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m7k6t5KTdf7gp6THKL982TseXYoG3hQbn6Bqginsspump[0m heat=12485
+✅ ACTIVE: [1m[38;5;121m4miB5aLzD5vhhj2QAzca5TbvyLf9okgnugHoGehmpump[0m (score=[38;5;82m700[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m4miB5aLzD5vhhj2QAzca5TbvyLf9okgnugHoGehmpump[0m heat=10700
+✅ ACTIVE: [1m[38;5;121m3zomtMhRRsBpLZeJLS86fgueXE7xAhoN8dnymNh8pump[0m (score=[38;5;82m680[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m3zomtMhRRsBpLZeJLS86fgueXE7xAhoN8dnymNh8pump[0m heat=10680
+✅ ACTIVE: [1m[38;5;121mEj4qsSA5ZvSDGgeasYxukdMF6nuFDNgeohrd9x5ea1Mo[0m (score=[38;5;82m666[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mEj4qsSA5ZvSDGgeasYxukdMF6nuFDNgeohrd9x5ea1Mo[0m heat=10666
+✅ ACTIVE: [1m[38;5;121mFkw9vUtRBVPJNdimHDNUfMmJw5CiK56gKLXz9KEpganE[0m (score=[38;5;82m657[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mFkw9vUtRBVPJNdimHDNUfMmJw5CiK56gKLXz9KEpganE[0m heat=10657
+✅ ACTIVE: [1m[38;5;121mxsJa4TzmufBynZqmRLETFfkMBJDDug6CKxPkqrdpump[0m (score=[38;5;82m645[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mxsJa4TzmufBynZqmRLETFfkMBJDDug6CKxPkqrdpump[0m heat=10645
+✅ ACTIVE: [1m[38;5;121mBTQJ4sQS79okRVrnGwbfFtUExMxRmVHXvUGKAdFUXnQC[0m (score=[38;5;82m630[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mBTQJ4sQS79okRVrnGwbfFtUExMxRmVHXvUGKAdFUXnQC[0m heat=10630
+✅ ACTIVE: [1m[38;5;121m95Jprp3EnZa3a37rpoLrAznKHQCWzBdGUaeMrmBhbD2c[0m (score=[38;5;82m616[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m95Jprp3EnZa3a37rpoLrAznKHQCWzBdGUaeMrmBhbD2c[0m heat=10616
+DBG ACTIVE_ROTATION start=30 removed=17 end=13
+[38;5;226m🧮 scoring[0m [38;5;117mconsidered=1532[0m [2mcalled=0[0m skips: [2mfdv=0[0m [2mconc=0[0m [2mwallet=0[0m [2mcooldown=0[0m [2msigner=0[0m [2mother=30[0m [2mqueue_dropped=0[0m [38;5;82mactive=13[0m [38;5;196mqueue=76[0m
+DBG outcomes: now_ts=1773823664
+DBG outcomes: pending=0
+[38;5;208m🫀 hb[0m local=2:53:44 AM coins=751 active=13 queue=76 calls=0 discovered=95
+[38;5;205m🟣 pumpportal[0m added=71 coins=822
+DBG watchlist promote: added=1 pruned=1 (min_score=50 keep=10)
+DBG helius ingest: base=https://api.helius.xyz/v0/addresses api_key_len=36 wallets=10
+DBG helius client: json err=reqwest::Error { kind: Body, source: hyper::Error(Body, Custom { kind: UnexpectedEof, error: "unexpected EOF during chunk size line" }) } url=https://api.helius.xyz/v0/addresses/3kPvbVb5nSMZuj6MjwAJUh2MmobZwvbnBJqjErC79Cn3/transactions?api-key=c1f008ec-1a08-4382-81f8-dcf093551ae9&limit=50
+DBG per_coin ingest: base=https://api.helius.xyz/v0/addresses api_key_len=36 targets=13 active=13 queue=0 top_n_hot=0
+✅ ACTIVE: [1m[38;5;121m6A88CUpdtjCG4edpzjSVwAdgCZC6Z7eQ5BvMDhLCVnER[0m (score=[38;5;82m5685[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m6A88CUpdtjCG4edpzjSVwAdgCZC6Z7eQ5BvMDhLCVnER[0m heat=23685
+✅ ACTIVE: [1m[38;5;121m95Jprp3EnZa3a37rpoLrAznKHQCWzBdGUaeMrmBhbD2c[0m (score=[38;5;82m5612[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m95Jprp3EnZa3a37rpoLrAznKHQCWzBdGUaeMrmBhbD2c[0m heat=23612
+✅ ACTIVE: [1m[38;5;121m9D4NQ5HWJzhCaEbZcoxX3GXWg2SczjLfArcT5rsqwMiG[0m (score=[38;5;82m4325[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m9D4NQ5HWJzhCaEbZcoxX3GXWg2SczjLfArcT5rsqwMiG[0m heat=22325
+✅ ACTIVE: [1m[38;5;121m8LxD9ughBJq7H3ry3vdKh9LRTHZhvHfkVzVAoFiF6H5g[0m (score=[38;5;82m3785[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m8LxD9ughBJq7H3ry3vdKh9LRTHZhvHfkVzVAoFiF6H5g[0m heat=21785
+✅ ACTIVE: [1m[38;5;121mDekcnehFjbKxbzpZcqFYWm4oGREeyaw1qQYdw3DKsKSW[0m (score=[38;5;82m2555[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mDekcnehFjbKxbzpZcqFYWm4oGREeyaw1qQYdw3DKsKSW[0m heat=20555
+✅ ACTIVE: [1m[38;5;121m2YCwUZ68qRyJHRw1dg4mExakoKg6RFSYQ2WBod5ZAHnY[0m (score=[38;5;82m705[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m2YCwUZ68qRyJHRw1dg4mExakoKg6RFSYQ2WBod5ZAHnY[0m heat=14705
+✅ ACTIVE: [1m[38;5;121mBDJYXKWfFD3JGUZCCvwq9ff3t7gsr9YSoKFvPioeVYNr[0m (score=[38;5;82m890[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mBDJYXKWfFD3JGUZCCvwq9ff3t7gsr9YSoKFvPioeVYNr[0m heat=10890
+✅ ACTIVE: [1m[38;5;121m4SwEr9hNFf6WR7rNUoUYkrASG5ujW3SdzkFJKcKxqDJY[0m (score=[38;5;82m888[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m4SwEr9hNFf6WR7rNUoUYkrASG5ujW3SdzkFJKcKxqDJY[0m heat=10888
+✅ ACTIVE: [1m[38;5;121m2Zd7h9TPgwaKTqgb9nP7ZmVCzh34bZfpHvk6LjUCVqgr[0m (score=[38;5;82m835[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m2Zd7h9TPgwaKTqgb9nP7ZmVCzh34bZfpHvk6LjUCVqgr[0m heat=10835
+✅ ACTIVE: [1m[38;5;121m4A4Tb7fGz87M8DqZBTTf3bGV6wxXrzkabVEcsriooSEG[0m (score=[38;5;82m733[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m4A4Tb7fGz87M8DqZBTTf3bGV6wxXrzkabVEcsriooSEG[0m heat=10733
+✅ ACTIVE: [1m[38;5;121m5QRdL22gjbbe1AqopF4pe6dG2yHDY1iCawzgWk7uSk1Y[0m (score=[38;5;82m731[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m5QRdL22gjbbe1AqopF4pe6dG2yHDY1iCawzgWk7uSk1Y[0m heat=10731
+✅ ACTIVE: [1m[38;5;121mDTDkxXoBmmyyrGBpAZbegL8z9tBoEYi58rZFEChf6Xiu[0m (score=[38;5;82m723[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mDTDkxXoBmmyyrGBpAZbegL8z9tBoEYi58rZFEChf6Xiu[0m heat=10723
+✅ ACTIVE: [1m[38;5;121mGHKFvqjgssASm8yMgr1DgJVCf7geVhnGUfkTAn9PpRDF[0m (score=[38;5;82m710[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mGHKFvqjgssASm8yMgr1DgJVCf7geVhnGUfkTAn9PpRDF[0m heat=10710
+✅ ACTIVE: [1m[38;5;121mGfBLBbHbsAzdjF17jHRSEzfaDi99bxYqSH1BTKSjmPZu[0m (score=[38;5;82m680[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mGfBLBbHbsAzdjF17jHRSEzfaDi99bxYqSH1BTKSjmPZu[0m heat=10680
+✅ ACTIVE: [1m[38;5;121m4miB5aLzD5vhhj2QAzca5TbvyLf9okgnugHoGehmpump[0m (score=[38;5;82m669[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m4miB5aLzD5vhhj2QAzca5TbvyLf9okgnugHoGehmpump[0m heat=10669
+✅ ACTIVE: [1m[38;5;121mfrPYyQ5C9cJtmiS7anZpE85eYXZvKCqMf2TdrdbfLso[0m (score=[38;5;82m658[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mfrPYyQ5C9cJtmiS7anZpE85eYXZvKCqMf2TdrdbfLso[0m heat=10658
+✅ ACTIVE: [1m[38;5;121m4p7psQtAxmMVSrcE419aRSE4GJdyJi697zvpUgUbTCd1[0m (score=[38;5;82m658[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m4p7psQtAxmMVSrcE419aRSE4GJdyJi697zvpUgUbTCd1[0m heat=10658
+✅ ACTIVE: [1m[38;5;121moALA4sNDW3Qr4PjZ984R8LPpyuN5gSknuUPGbfGpump[0m (score=[38;5;82m645[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121moALA4sNDW3Qr4PjZ984R8LPpyuN5gSknuUPGbfGpump[0m heat=10645
+✅ ACTIVE: [1m[38;5;121m86UBB8g7z9jMZ1GYxTEbiHoLwHWu7fTxuLq72nYaTH7E[0m (score=[38;5;82m645[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m86UBB8g7z9jMZ1GYxTEbiHoLwHWu7fTxuLq72nYaTH7E[0m heat=10645
+✅ ACTIVE: [1m[38;5;121mG5bRLvVFv3AFnGrJvXgqzoyKcVsbYymvV96XFZVmJtKx[0m (score=[38;5;82m645[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mG5bRLvVFv3AFnGrJvXgqzoyKcVsbYymvV96XFZVmJtKx[0m heat=10645
+✅ ACTIVE: [1m[38;5;121m48X29D1jnuKbuRVeUXKAUzEHB82vYTuwxWS5VrkY5bq2[0m (score=[38;5;82m645[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m48X29D1jnuKbuRVeUXKAUzEHB82vYTuwxWS5VrkY5bq2[0m heat=10645
+✅ ACTIVE: [1m[38;5;121mFZvhhggPbBn5j1CiSRUvy4iD9cENpWdWtAFF9KAupump[0m (score=[38;5;82m645[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mFZvhhggPbBn5j1CiSRUvy4iD9cENpWdWtAFF9KAupump[0m heat=10645
+✅ ACTIVE: [1m[38;5;121m2hAFnvmAcj7meNZYDxjK7hBdCWnDrfXt129CH1V8pump[0m (score=[38;5;82m645[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m2hAFnvmAcj7meNZYDxjK7hBdCWnDrfXt129CH1V8pump[0m heat=10645
+✅ ACTIVE: [1m[38;5;121m5qZod5srbAecRhNDzZDUrnfBdnsxrRfQ6peeDFy3pump[0m (score=[38;5;82m615[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m5qZod5srbAecRhNDzZDUrnfBdnsxrRfQ6peeDFy3pump[0m heat=10615
+✅ ACTIVE: [1m[38;5;121mEjWT1Sw6ycncvYLJxN2G8JzzGrtMxyTgoRhCqjAeho5F[0m (score=[38;5;82m606[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mEjWT1Sw6ycncvYLJxN2G8JzzGrtMxyTgoRhCqjAeho5F[0m heat=10606
+✅ ACTIVE: [1m[38;5;121me5z6ixhsvAPu1d7F9VhDpKJ7BFbD8rVE3yNRzVf9WVL[0m (score=[38;5;82m604[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121me5z6ixhsvAPu1d7F9VhDpKJ7BFbD8rVE3yNRzVf9WVL[0m heat=10604
+✅ ACTIVE: [1m[38;5;121mBwWrV6yfCNV87ptMeqz5CMpzcWNW1D6QPtKCuy51r3wx[0m (score=[38;5;82m603[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mBwWrV6yfCNV87ptMeqz5CMpzcWNW1D6QPtKCuy51r3wx[0m heat=10603
+DBG ACTIVE_ROTATION start=30 removed=5 end=25
+[38;5;226m🧮 scoring[0m [38;5;117mconsidered=1964[0m [2mcalled=0[0m skips: [2mfdv=0[0m [2mconc=0[0m [2mwallet=0[0m [2mcooldown=0[0m [2msigner=0[0m [2mother=30[0m [2mqueue_dropped=0[0m [38;5;82mactive=25[0m [38;5;196mqueue=92[0m
+DBG outcomes: now_ts=1773824024
+DBG outcomes: pending=0
+[38;5;208m🫀 hb[0m local=2:59:28 AM coins=967 active=25 queue=92 calls=0 discovered=166
+[38;5;205m🟣 pumpportal[0m added=67 coins=1034
+DBG watchlist promote: added=1 pruned=1 (min_score=50 keep=10)
+DBG helius ingest: base=https://api.helius.xyz/v0/addresses api_key_len=36 wallets=10
+DBG per_coin ingest: base=https://api.helius.xyz/v0/addresses api_key_len=36 targets=25 active=25 queue=0 top_n_hot=0
+✅ ACTIVE: [1m[38;5;121m4K4qF5QrX8KfY4qAh5JobgGwaZShE13591C8JUrnj7gi[0m (score=[38;5;82m1755[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m4K4qF5QrX8KfY4qAh5JobgGwaZShE13591C8JUrnj7gi[0m heat=19755
+✅ ACTIVE: [1m[38;5;121m13bhNTnX4bbqrB42MGZRtHMdT15ChwrdBX8VBdfCjGQu[0m (score=[38;5;82m715[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m13bhNTnX4bbqrB42MGZRtHMdT15ChwrdBX8VBdfCjGQu[0m heat=18715
+✅ ACTIVE: [1m[38;5;121me5z6ixhsvAPu1d7F9VhDpKJ7BFbD8rVE3yNRzVf9WVL[0m (score=[38;5;82m690[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121me5z6ixhsvAPu1d7F9VhDpKJ7BFbD8rVE3yNRzVf9WVL[0m heat=18690
+✅ ACTIVE: [1m[38;5;121m5QRdL22gjbbe1AqopF4pe6dG2yHDY1iCawzgWk7uSk1Y[0m (score=[38;5;82m5725[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m5QRdL22gjbbe1AqopF4pe6dG2yHDY1iCawzgWk7uSk1Y[0m heat=15725
+✅ ACTIVE: [1m[38;5;121mFkw9vUtRBVPJNdimHDNUfMmJw5CiK56gKLXz9KEpganE[0m (score=[38;5;82m734[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mFkw9vUtRBVPJNdimHDNUfMmJw5CiK56gKLXz9KEpganE[0m heat=14734
+✅ ACTIVE: [1m[38;5;121m4miB5aLzD5vhhj2QAzca5TbvyLf9okgnugHoGehmpump[0m (score=[38;5;82m548[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m4miB5aLzD5vhhj2QAzca5TbvyLf9okgnugHoGehmpump[0m heat=14548
+✅ ACTIVE: [1m[38;5;121m5qZod5srbAecRhNDzZDUrnfBdnsxrRfQ6peeDFy3pump[0m (score=[38;5;82m489[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m5qZod5srbAecRhNDzZDUrnfBdnsxrRfQ6peeDFy3pump[0m heat=14489
+✅ ACTIVE: [1m[38;5;121m48X29D1jnuKbuRVeUXKAUzEHB82vYTuwxWS5VrkY5bq2[0m (score=[38;5;82m5365[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m48X29D1jnuKbuRVeUXKAUzEHB82vYTuwxWS5VrkY5bq2[0m heat=13365
+✅ ACTIVE: [1m[38;5;121mDTDkxXoBmmyyrGBpAZbegL8z9tBoEYi58rZFEChf6Xiu[0m (score=[38;5;82m3217[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mDTDkxXoBmmyyrGBpAZbegL8z9tBoEYi58rZFEChf6Xiu[0m heat=13217
+✅ ACTIVE: [1m[38;5;121mBuBRWo1rvrxXBvZY6uiQdbUZhkG9i51feRxeTPTMpump[0m (score=[38;5;82m525[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mBuBRWo1rvrxXBvZY6uiQdbUZhkG9i51feRxeTPTMpump[0m heat=12525
+✅ ACTIVE: [1m[38;5;121m3zomtMhRRsBpLZeJLS86fgueXE7xAhoN8dnymNh8pump[0m (score=[38;5;82m494[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m3zomtMhRRsBpLZeJLS86fgueXE7xAhoN8dnymNh8pump[0m heat=12494
+✅ ACTIVE: [1m[38;5;121m4p7psQtAxmMVSrcE419aRSE4GJdyJi697zvpUgUbTCd1[0m (score=[38;5;82m740[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m4p7psQtAxmMVSrcE419aRSE4GJdyJi697zvpUgUbTCd1[0m heat=10740
+✅ ACTIVE: [1m[38;5;121mBTQJ4sQS79okRVrnGwbfFtUExMxRmVHXvUGKAdFUXnQC[0m (score=[38;5;82m715[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mBTQJ4sQS79okRVrnGwbfFtUExMxRmVHXvUGKAdFUXnQC[0m heat=10715
+✅ ACTIVE: [1m[38;5;121mDekcnehFjbKxbzpZcqFYWm4oGREeyaw1qQYdw3DKsKSW[0m (score=[38;5;82m635[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mDekcnehFjbKxbzpZcqFYWm4oGREeyaw1qQYdw3DKsKSW[0m heat=10635
+✅ ACTIVE: [1m[38;5;121mEj4qsSA5ZvSDGgeasYxukdMF6nuFDNgeohrd9x5ea1Mo[0m (score=[38;5;82m615[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mEj4qsSA5ZvSDGgeasYxukdMF6nuFDNgeohrd9x5ea1Mo[0m heat=10615
+✅ ACTIVE: [1m[38;5;121m33Fw2YhtC8M1GAquFg2N4J4RMt1vKQ4XEgzZAkQZpump[0m (score=[38;5;82m611[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m33Fw2YhtC8M1GAquFg2N4J4RMt1vKQ4XEgzZAkQZpump[0m heat=10611
+✅ ACTIVE: [1m[38;5;121m64xJESBVN3CBeYBi3zEWKd2RLVtNxxy8xDo638vBtQC9[0m (score=[38;5;82m592[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m64xJESBVN3CBeYBi3zEWKd2RLVtNxxy8xDo638vBtQC9[0m heat=10592
+✅ ACTIVE: [1m[38;5;121mEbHMcerS7KSVaPxLpUr6saHEJ2Xr9uVBPfricHkmpump[0m (score=[38;5;82m569[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mEbHMcerS7KSVaPxLpUr6saHEJ2Xr9uVBPfricHkmpump[0m heat=10569
+✅ ACTIVE: [1m[38;5;121m2vqBBdyBPC1s4yhrDJuoKz7xRtTkJ2TH11PeSrKtGBr6[0m (score=[38;5;82m567[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m2vqBBdyBPC1s4yhrDJuoKz7xRtTkJ2TH11PeSrKtGBr6[0m heat=10567
+✅ ACTIVE: [1m[38;5;121mxsJa4TzmufBynZqmRLETFfkMBJDDug6CKxPkqrdpump[0m (score=[38;5;82m553[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mxsJa4TzmufBynZqmRLETFfkMBJDDug6CKxPkqrdpump[0m heat=10553
+DBG ACTIVE_ROTATION start=30 removed=8 end=22
+[38;5;226m🧮 scoring[0m [38;5;117mconsidered=2350[0m [2mcalled=0[0m skips: [38;5;208mfdv=2[0m [2mconc=0[0m [2mwallet=0[0m [2mcooldown=0[0m [2msigner=0[0m [2mother=28[0m [38;5;196mqueue_dropped=1[0m [38;5;82mactive=22[0m [38;5;196mqueue=122[0m
+DBG outcomes: now_ts=1773824368
+DBG outcomes: pending=0
+[38;5;208m🫀 hb[0m local=3:06:04 AM coins=1160 active=22 queue=122 calls=0 discovered=233
+[38;5;205m🟣 pumpportal[0m added=75 coins=1235
+DBG watchlist promote: added=1 pruned=1 (min_score=50 keep=10)
+DBG helius ingest: base=https://api.helius.xyz/v0/addresses api_key_len=36 wallets=10
+DBG per_coin ingest: base=https://api.helius.xyz/v0/addresses api_key_len=36 targets=22 active=22 queue=0 top_n_hot=0
+✅ ACTIVE: [1m[38;5;121m4SwEr9hNFf6WR7rNUoUYkrASG5ujW3SdzkFJKcKxqDJY[0m (score=[38;5;82m5095[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m4SwEr9hNFf6WR7rNUoUYkrASG5ujW3SdzkFJKcKxqDJY[0m heat=23095
+✅ ACTIVE: [1m[38;5;121mGfBLBbHbsAzdjF17jHRSEzfaDi99bxYqSH1BTKSjmPZu[0m (score=[38;5;82m3645[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mGfBLBbHbsAzdjF17jHRSEzfaDi99bxYqSH1BTKSjmPZu[0m heat=21645
+✅ ACTIVE: [1m[38;5;121m4A4Tb7fGz87M8DqZBTTf3bGV6wxXrzkabVEcsriooSEG[0m (score=[38;5;82m2105[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m4A4Tb7fGz87M8DqZBTTf3bGV6wxXrzkabVEcsriooSEG[0m heat=20105
+✅ ACTIVE: [1m[38;5;121m86UBB8g7z9jMZ1GYxTEbiHoLwHWu7fTxuLq72nYaTH7E[0m (score=[38;5;82m2085[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m86UBB8g7z9jMZ1GYxTEbiHoLwHWu7fTxuLq72nYaTH7E[0m heat=20085
+✅ ACTIVE: [1m[38;5;121mBDJYXKWfFD3JGUZCCvwq9ff3t7gsr9YSoKFvPioeVYNr[0m (score=[38;5;82m1810[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mBDJYXKWfFD3JGUZCCvwq9ff3t7gsr9YSoKFvPioeVYNr[0m heat=19810
+✅ ACTIVE: [1m[38;5;121mfrPYyQ5C9cJtmiS7anZpE85eYXZvKCqMf2TdrdbfLso[0m (score=[38;5;82m1730[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mfrPYyQ5C9cJtmiS7anZpE85eYXZvKCqMf2TdrdbfLso[0m heat=19730
+✅ ACTIVE: [1m[38;5;121mFZvhhggPbBn5j1CiSRUvy4iD9cENpWdWtAFF9KAupump[0m (score=[38;5;82m1240[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mFZvhhggPbBn5j1CiSRUvy4iD9cENpWdWtAFF9KAupump[0m heat=19240
+✅ ACTIVE: [1m[38;5;121mG5bRLvVFv3AFnGrJvXgqzoyKcVsbYymvV96XFZVmJtKx[0m (score=[38;5;82m965[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mG5bRLvVFv3AFnGrJvXgqzoyKcVsbYymvV96XFZVmJtKx[0m heat=18965
+✅ ACTIVE: [1m[38;5;121m2vqBBdyBPC1s4yhrDJuoKz7xRtTkJ2TH11PeSrKtGBr6[0m (score=[38;5;82m715[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m2vqBBdyBPC1s4yhrDJuoKz7xRtTkJ2TH11PeSrKtGBr6[0m heat=18715
+✅ ACTIVE: [1m[38;5;121m33Fw2YhtC8M1GAquFg2N4J4RMt1vKQ4XEgzZAkQZpump[0m (score=[38;5;82m695[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m33Fw2YhtC8M1GAquFg2N4J4RMt1vKQ4XEgzZAkQZpump[0m heat=18695
+✅ ACTIVE: [1m[38;5;121me5z6ixhsvAPu1d7F9VhDpKJ7BFbD8rVE3yNRzVf9WVL[0m (score=[38;5;82m662[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121me5z6ixhsvAPu1d7F9VhDpKJ7BFbD8rVE3yNRzVf9WVL[0m heat=18662
+✅ ACTIVE: [1m[38;5;121mBwWrV6yfCNV87ptMeqz5CMpzcWNW1D6QPtKCuy51r3wx[0m (score=[38;5;82m715[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mBwWrV6yfCNV87ptMeqz5CMpzcWNW1D6QPtKCuy51r3wx[0m heat=14715
+✅ ACTIVE: [1m[38;5;121m8LxD9ughBJq7H3ry3vdKh9LRTHZhvHfkVzVAoFiF6H5g[0m (score=[38;5;82m1405[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m8LxD9ughBJq7H3ry3vdKh9LRTHZhvHfkVzVAoFiF6H5g[0m heat=11405
+✅ ACTIVE: [1m[38;5;121mEbHMcerS7KSVaPxLpUr6saHEJ2Xr9uVBPfricHkmpump[0m (score=[38;5;82m770[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mEbHMcerS7KSVaPxLpUr6saHEJ2Xr9uVBPfricHkmpump[0m heat=10770
+✅ ACTIVE: [1m[38;5;121mBTQJ4sQS79okRVrnGwbfFtUExMxRmVHXvUGKAdFUXnQC[0m (score=[38;5;82m740[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mBTQJ4sQS79okRVrnGwbfFtUExMxRmVHXvUGKAdFUXnQC[0m heat=10740
+✅ ACTIVE: [1m[38;5;121m2YCwUZ68qRyJHRw1dg4mExakoKg6RFSYQ2WBod5ZAHnY[0m (score=[38;5;82m715[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m2YCwUZ68qRyJHRw1dg4mExakoKg6RFSYQ2WBod5ZAHnY[0m heat=10715
+✅ ACTIVE: [1m[38;5;121m13bhNTnX4bbqrB42MGZRtHMdT15ChwrdBX8VBdfCjGQu[0m (score=[38;5;82m689[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m13bhNTnX4bbqrB42MGZRtHMdT15ChwrdBX8VBdfCjGQu[0m heat=10689
+✅ ACTIVE: [1m[38;5;121m4K4qF5QrX8KfY4qAh5JobgGwaZShE13591C8JUrnj7gi[0m (score=[38;5;82m658[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m4K4qF5QrX8KfY4qAh5JobgGwaZShE13591C8JUrnj7gi[0m heat=10658
+✅ ACTIVE: [1m[38;5;121moALA4sNDW3Qr4PjZ984R8LPpyuN5gSknuUPGbfGpump[0m (score=[38;5;82m645[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121moALA4sNDW3Qr4PjZ984R8LPpyuN5gSknuUPGbfGpump[0m heat=10645
+✅ ACTIVE: [1m[38;5;121m4miB5aLzD5vhhj2QAzca5TbvyLf9okgnugHoGehmpump[0m (score=[38;5;82m580[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m4miB5aLzD5vhhj2QAzca5TbvyLf9okgnugHoGehmpump[0m heat=10580
+✅ ACTIVE: [1m[38;5;121m7k6t5KTdf7gp6THKL982TseXYoG3hQbn6Bqginsspump[0m (score=[38;5;82m496[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m7k6t5KTdf7gp6THKL982TseXYoG3hQbn6Bqginsspump[0m heat=10496
+✅ ACTIVE: [1m[38;5;121m3zomtMhRRsBpLZeJLS86fgueXE7xAhoN8dnymNh8pump[0m (score=[38;5;82m494[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m3zomtMhRRsBpLZeJLS86fgueXE7xAhoN8dnymNh8pump[0m heat=10494
+✅ ACTIVE: [1m[38;5;121mdpayhRLk7thgCFJRE9ErE411zxpa5rPRZWPLBTMpump[0m (score=[38;5;82m473[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mdpayhRLk7thgCFJRE9ErE411zxpa5rPRZWPLBTMpump[0m heat=10473
+✅ ACTIVE: [1m[38;5;121m5QmbJw7mM6tcCdXVy8ftc2bu8izded7Etc57TMA2pump[0m (score=[38;5;82m450[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m5QmbJw7mM6tcCdXVy8ftc2bu8izded7Etc57TMA2pump[0m heat=10450
+✅ ACTIVE: [1m[38;5;121mCASHx9KJUStyftLFWGvEVf59SGeG9sh5FfcnZMVPCASH[0m (score=[38;5;82m447[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mCASHx9KJUStyftLFWGvEVf59SGeG9sh5FfcnZMVPCASH[0m heat=10447
+✅ ACTIVE: [1m[38;5;121mC4yDhKwkikpVGCQWD9BT2SJyHAtRFFnKPDM9Nyshpump[0m (score=[38;5;82m389[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mC4yDhKwkikpVGCQWD9BT2SJyHAtRFFnKPDM9Nyshpump[0m heat=10389
+✅ ACTIVE: [1m[38;5;121m33dhma9QA7xefhVpA7c5vMrN826xcHanSHruUEKF2LmW[0m (score=[38;5;82m387[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m33dhma9QA7xefhVpA7c5vMrN826xcHanSHruUEKF2LmW[0m heat=10387
+✅ ACTIVE: [1m[38;5;121mEfPoo4wWgxKVToit7yX5VtXXBrhao4G8L7vrbKy6pump[0m (score=[38;5;82m385[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mEfPoo4wWgxKVToit7yX5VtXXBrhao4G8L7vrbKy6pump[0m heat=10385
+✅ ACTIVE: [1m[38;5;121mEF228ijSZdSampJMvhLUiijJGP5PTH1Z17i71JR5pump[0m (score=[38;5;82m377[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mEF228ijSZdSampJMvhLUiijJGP5PTH1Z17i71JR5pump[0m heat=10377
+DBG ACTIVE_ROTATION start=30 removed=11 end=19
+[38;5;226m🧮 scoring[0m [38;5;117mconsidered=2794[0m [2mcalled=0[0m skips: [38;5;208mfdv=3[0m [2mconc=0[0m [2mwallet=0[0m [2mcooldown=0[0m [2msigner=0[0m [2mother=27[0m [38;5;196mqueue_dropped=15[0m [38;5;82mactive=19[0m [38;5;196mqueue=116[0m
+DBG outcomes: now_ts=1773824764
+DBG outcomes: pending=0
+[38;5;208m🫀 hb[0m local=3:13:17 AM coins=1382 active=19 queue=116 calls=0 discovered=308
+[38;5;205m🟣 pumpportal[0m added=56 coins=1438
+DBG watchlist promote: added=1 pruned=1 (min_score=50 keep=10)
+DBG helius ingest: base=https://api.helius.xyz/v0/addresses api_key_len=36 wallets=10
+DBG per_coin ingest: base=https://api.helius.xyz/v0/addresses api_key_len=36 targets=19 active=19 queue=0 top_n_hot=0
+✅ ACTIVE: [1m[38;5;121mDekcnehFjbKxbzpZcqFYWm4oGREeyaw1qQYdw3DKsKSW[0m (score=[38;5;82m2035[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mDekcnehFjbKxbzpZcqFYWm4oGREeyaw1qQYdw3DKsKSW[0m heat=20035
+✅ ACTIVE: [1m[38;5;121mG5bRLvVFv3AFnGrJvXgqzoyKcVsbYymvV96XFZVmJtKx[0m (score=[38;5;82m595[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mG5bRLvVFv3AFnGrJvXgqzoyKcVsbYymvV96XFZVmJtKx[0m heat=12595
+✅ ACTIVE: [1m[38;5;121mGfBLBbHbsAzdjF17jHRSEzfaDi99bxYqSH1BTKSjmPZu[0m (score=[38;5;82m822[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mGfBLBbHbsAzdjF17jHRSEzfaDi99bxYqSH1BTKSjmPZu[0m heat=10822
+✅ ACTIVE: [1m[38;5;121m4SwEr9hNFf6WR7rNUoUYkrASG5ujW3SdzkFJKcKxqDJY[0m (score=[38;5;82m797[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m4SwEr9hNFf6WR7rNUoUYkrASG5ujW3SdzkFJKcKxqDJY[0m heat=10797
+✅ ACTIVE: [1m[38;5;121mBwWrV6yfCNV87ptMeqz5CMpzcWNW1D6QPtKCuy51r3wx[0m (score=[38;5;82m755[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mBwWrV6yfCNV87ptMeqz5CMpzcWNW1D6QPtKCuy51r3wx[0m heat=10755
+✅ ACTIVE: [1m[38;5;121mfrPYyQ5C9cJtmiS7anZpE85eYXZvKCqMf2TdrdbfLso[0m (score=[38;5;82m733[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mfrPYyQ5C9cJtmiS7anZpE85eYXZvKCqMf2TdrdbfLso[0m heat=10733
+✅ ACTIVE: [1m[38;5;121mGHKFvqjgssASm8yMgr1DgJVCf7geVhnGUfkTAn9PpRDF[0m (score=[38;5;82m710[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mGHKFvqjgssASm8yMgr1DgJVCf7geVhnGUfkTAn9PpRDF[0m heat=10710
+✅ ACTIVE: [1m[38;5;121m2hAFnvmAcj7meNZYDxjK7hBdCWnDrfXt129CH1V8pump[0m (score=[38;5;82m709[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m2hAFnvmAcj7meNZYDxjK7hBdCWnDrfXt129CH1V8pump[0m heat=10709
+✅ ACTIVE: [1m[38;5;121m2YCwUZ68qRyJHRw1dg4mExakoKg6RFSYQ2WBod5ZAHnY[0m (score=[38;5;82m697[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m2YCwUZ68qRyJHRw1dg4mExakoKg6RFSYQ2WBod5ZAHnY[0m heat=10697
+✅ ACTIVE: [1m[38;5;121mFZvhhggPbBn5j1CiSRUvy4iD9cENpWdWtAFF9KAupump[0m (score=[38;5;82m672[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mFZvhhggPbBn5j1CiSRUvy4iD9cENpWdWtAFF9KAupump[0m heat=10672
+✅ ACTIVE: [1m[38;5;121m4A4Tb7fGz87M8DqZBTTf3bGV6wxXrzkabVEcsriooSEG[0m (score=[38;5;82m658[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m4A4Tb7fGz87M8DqZBTTf3bGV6wxXrzkabVEcsriooSEG[0m heat=10658
+✅ ACTIVE: [1m[38;5;121me5z6ixhsvAPu1d7F9VhDpKJ7BFbD8rVE3yNRzVf9WVL[0m (score=[38;5;82m610[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121me5z6ixhsvAPu1d7F9VhDpKJ7BFbD8rVE3yNRzVf9WVL[0m heat=10610
+✅ ACTIVE: [1m[38;5;121mxsJa4TzmufBynZqmRLETFfkMBJDDug6CKxPkqrdpump[0m (score=[38;5;82m543[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mxsJa4TzmufBynZqmRLETFfkMBJDDug6CKxPkqrdpump[0m heat=10543
+✅ ACTIVE: [1m[38;5;121mCASHx9KJUStyftLFWGvEVf59SGeG9sh5FfcnZMVPCASH[0m (score=[38;5;82m473[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mCASHx9KJUStyftLFWGvEVf59SGeG9sh5FfcnZMVPCASH[0m heat=10473
+✅ ACTIVE: [1m[38;5;121m7k6t5KTdf7gp6THKL982TseXYoG3hQbn6Bqginsspump[0m (score=[38;5;82m463[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m7k6t5KTdf7gp6THKL982TseXYoG3hQbn6Bqginsspump[0m heat=10463
+✅ ACTIVE: [1m[38;5;121mG4QRtYNRPyxdKwcAqqW3xSeEynDDxEyRvrDT9FJEpump[0m (score=[38;5;82m460[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mG4QRtYNRPyxdKwcAqqW3xSeEynDDxEyRvrDT9FJEpump[0m heat=10460
+✅ ACTIVE: [1m[38;5;121mFgr6ZejzV1nguSdkt3ugh5AdzucdHPaMsR2dCF2cpump[0m (score=[38;5;82m437[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mFgr6ZejzV1nguSdkt3ugh5AdzucdHPaMsR2dCF2cpump[0m heat=10437
+✅ ACTIVE: [1m[38;5;121m7XdCaKpqLmKE2K7yr9xaeWB1H2CVZ1oGwxB6hmd9pump[0m (score=[38;5;82m422[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m7XdCaKpqLmKE2K7yr9xaeWB1H2CVZ1oGwxB6hmd9pump[0m heat=10422
+✅ ACTIVE: [1m[38;5;121mEfPoo4wWgxKVToit7yX5VtXXBrhao4G8L7vrbKy6pump[0m (score=[38;5;82m384[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mEfPoo4wWgxKVToit7yX5VtXXBrhao4G8L7vrbKy6pump[0m heat=10384
+✅ ACTIVE: [1m[38;5;121m5XqzzdodsNtAM8TtQyiqGVbD7GwLBBN7oVnRA3hLpump[0m (score=[38;5;82m375[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m5XqzzdodsNtAM8TtQyiqGVbD7GwLBBN7oVnRA3hLpump[0m heat=10375
+✅ ACTIVE: [1m[38;5;121m2vqBBdyBPC1s4yhrDJuoKz7xRtTkJ2TH11PeSrKtGBr6[0m (score=[38;5;82m415[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m2vqBBdyBPC1s4yhrDJuoKz7xRtTkJ2TH11PeSrKtGBr6[0m heat=8415
+✅ ACTIVE: [1m[38;5;121m6A88CUpdtjCG4edpzjSVwAdgCZC6Z7eQ5BvMDhLCVnER[0m (score=[38;5;82m1165[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m6A88CUpdtjCG4edpzjSVwAdgCZC6Z7eQ5BvMDhLCVnER[0m heat=5165
+✅ ACTIVE: [1m[38;5;121mGy83J3ejSY7CVjVcgzuGyQWk1HsyEU1Xxa1feuyw1McG[0m (score=[38;5;82m993[0m)
+✅ ACTIVE: [1m[38;5;121mDTDkxXoBmmyyrGBpAZbegL8z9tBoEYi58rZFEChf6Xiu[0m (score=[38;5;82m599[0m)
+✅ ACTIVE: [1m[38;5;121m64xJESBVN3CBeYBi3zEWKd2RLVtNxxy8xDo638vBtQC9[0m (score=[38;5;82m405[0m)
+✅ ACTIVE: [1m[38;5;121m2Zd7h9TPgwaKTqgb9nP7ZmVCzh34bZfpHvk6LjUCVqgr[0m (score=[38;5;82m345[0m)
+✅ ACTIVE: [1m[38;5;121m9D4NQ5HWJzhCaEbZcoxX3GXWg2SczjLfArcT5rsqwMiG[0m (score=[38;5;82m345[0m)
+DBG ACTIVE_ROTATION start=30 removed=8 end=22
+[38;5;226m🧮 scoring[0m [38;5;117mconsidered=3134[0m [2mcalled=0[0m skips: [2mfdv=0[0m [2mconc=0[0m [2mwallet=0[0m [2mcooldown=0[0m [2msigner=0[0m [2mother=30[0m [38;5;196mqueue_dropped=14[0m [38;5;82mactive=22[0m [38;5;196mqueue=129[0m
+DBG outcomes: now_ts=1773825197
+DBG outcomes: pending=0
+[38;5;208m🫀 hb[0m local=3:20:06 AM coins=1552 active=22 queue=129 calls=0 discovered=364
+[38;5;205m🟣 pumpportal[0m added=51 coins=1603
+DBG watchlist promote: added=1 pruned=1 (min_score=50 keep=10)
+DBG helius ingest: base=https://api.helius.xyz/v0/addresses api_key_len=36 wallets=10
+DBG per_coin ingest: base=https://api.helius.xyz/v0/addresses api_key_len=36 targets=22 active=22 queue=0 top_n_hot=0
+✅ ACTIVE: [1m[38;5;121m8LxD9ughBJq7H3ry3vdKh9LRTHZhvHfkVzVAoFiF6H5g[0m (score=[38;5;82m5760[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m8LxD9ughBJq7H3ry3vdKh9LRTHZhvHfkVzVAoFiF6H5g[0m heat=23760
+✅ ACTIVE: [1m[38;5;121mGy83J3ejSY7CVjVcgzuGyQWk1HsyEU1Xxa1feuyw1McG[0m (score=[38;5;82m5725[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mGy83J3ejSY7CVjVcgzuGyQWk1HsyEU1Xxa1feuyw1McG[0m heat=23725
+✅ ACTIVE: [1m[38;5;121m4K4qF5QrX8KfY4qAh5JobgGwaZShE13591C8JUrnj7gi[0m (score=[38;5;82m1485[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m4K4qF5QrX8KfY4qAh5JobgGwaZShE13591C8JUrnj7gi[0m heat=19485
+✅ ACTIVE: [1m[38;5;121me5z6ixhsvAPu1d7F9VhDpKJ7BFbD8rVE3yNRzVf9WVL[0m (score=[38;5;82m880[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121me5z6ixhsvAPu1d7F9VhDpKJ7BFbD8rVE3yNRzVf9WVL[0m heat=18880
+✅ ACTIVE: [1m[38;5;121m13bhNTnX4bbqrB42MGZRtHMdT15ChwrdBX8VBdfCjGQu[0m (score=[38;5;82m700[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m13bhNTnX4bbqrB42MGZRtHMdT15ChwrdBX8VBdfCjGQu[0m heat=18700
+✅ ACTIVE: [1m[38;5;121mDekcnehFjbKxbzpZcqFYWm4oGREeyaw1qQYdw3DKsKSW[0m (score=[38;5;82m650[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mDekcnehFjbKxbzpZcqFYWm4oGREeyaw1qQYdw3DKsKSW[0m heat=18650
+✅ ACTIVE: [1m[38;5;121m412zDygnwP9DzitnQVgRKUFFTDmrYScFch6P2k39pump[0m (score=[38;5;82m431[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m412zDygnwP9DzitnQVgRKUFFTDmrYScFch6P2k39pump[0m heat=14431
+✅ ACTIVE: [1m[38;5;121mxsJa4TzmufBynZqmRLETFfkMBJDDug6CKxPkqrdpump[0m (score=[38;5;82m551[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mxsJa4TzmufBynZqmRLETFfkMBJDDug6CKxPkqrdpump[0m heat=12551
+✅ ACTIVE: [1m[38;5;121mEUfRMccYw5E8Jv7NFmcpgKVFABqTr3QVputRQrbZpump[0m (score=[38;5;82m526[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mEUfRMccYw5E8Jv7NFmcpgKVFABqTr3QVputRQrbZpump[0m heat=12526
+✅ ACTIVE: [1m[38;5;121mBDJYXKWfFD3JGUZCCvwq9ff3t7gsr9YSoKFvPioeVYNr[0m (score=[38;5;82m865[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mBDJYXKWfFD3JGUZCCvwq9ff3t7gsr9YSoKFvPioeVYNr[0m heat=10865
+✅ ACTIVE: [1m[38;5;121m86UBB8g7z9jMZ1GYxTEbiHoLwHWu7fTxuLq72nYaTH7E[0m (score=[38;5;82m820[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m86UBB8g7z9jMZ1GYxTEbiHoLwHWu7fTxuLq72nYaTH7E[0m heat=10820
+✅ ACTIVE: [1m[38;5;121m64xJESBVN3CBeYBi3zEWKd2RLVtNxxy8xDo638vBtQC9[0m (score=[38;5;82m745[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m64xJESBVN3CBeYBi3zEWKd2RLVtNxxy8xDo638vBtQC9[0m heat=10745
+✅ ACTIVE: [1m[38;5;121mGHKFvqjgssASm8yMgr1DgJVCf7geVhnGUfkTAn9PpRDF[0m (score=[38;5;82m695[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mGHKFvqjgssASm8yMgr1DgJVCf7geVhnGUfkTAn9PpRDF[0m heat=10695
+✅ ACTIVE: [1m[38;5;121m5HsdWkRJEKN26DroR5xMKqoh85dmkfPkAq19t171E7on[0m (score=[38;5;82m680[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m5HsdWkRJEKN26DroR5xMKqoh85dmkfPkAq19t171E7on[0m heat=10680
+✅ ACTIVE: [1m[38;5;121m2vqBBdyBPC1s4yhrDJuoKz7xRtTkJ2TH11PeSrKtGBr6[0m (score=[38;5;82m636[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m2vqBBdyBPC1s4yhrDJuoKz7xRtTkJ2TH11PeSrKtGBr6[0m heat=10636
+✅ ACTIVE: [1m[38;5;121moALA4sNDW3Qr4PjZ984R8LPpyuN5gSknuUPGbfGpump[0m (score=[38;5;82m561[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121moALA4sNDW3Qr4PjZ984R8LPpyuN5gSknuUPGbfGpump[0m heat=10561
+✅ ACTIVE: [1m[38;5;121m3zomtMhRRsBpLZeJLS86fgueXE7xAhoN8dnymNh8pump[0m (score=[38;5;82m521[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m3zomtMhRRsBpLZeJLS86fgueXE7xAhoN8dnymNh8pump[0m heat=10521
+✅ ACTIVE: [1m[38;5;121mT7NMueSt3Dm1Mrktgf83q58yQ5X3fX3VpC2qjUUpump[0m (score=[38;5;82m510[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mT7NMueSt3Dm1Mrktgf83q58yQ5X3fX3VpC2qjUUpump[0m heat=10510
+✅ ACTIVE: [1m[38;5;121m3kCXgBSP7FkW4kA5GcwPVgFDbpA7pBdVF1VRETKvpump[0m (score=[38;5;82m465[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m3kCXgBSP7FkW4kA5GcwPVgFDbpA7pBdVF1VRETKvpump[0m heat=10465
+✅ ACTIVE: [1m[38;5;121mCASHx9KJUStyftLFWGvEVf59SGeG9sh5FfcnZMVPCASH[0m (score=[38;5;82m463[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mCASHx9KJUStyftLFWGvEVf59SGeG9sh5FfcnZMVPCASH[0m heat=10463
+✅ ACTIVE: [1m[38;5;121m9YcjRXF7Scp3S1CXtFZS74h1eMgoRyYCPyuRpiCMpump[0m (score=[38;5;82m456[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m9YcjRXF7Scp3S1CXtFZS74h1eMgoRyYCPyuRpiCMpump[0m heat=10456
+✅ ACTIVE: [1m[38;5;121mEk6YxgnyYSz2XXhGnzENUtCVRHjFaLBNQvfx6Ek6pump[0m (score=[38;5;82m442[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mEk6YxgnyYSz2XXhGnzENUtCVRHjFaLBNQvfx6Ek6pump[0m heat=10442
+✅ ACTIVE: [1m[38;5;121mC4yDhKwkikpVGCQWD9BT2SJyHAtRFFnKPDM9Nyshpump[0m (score=[38;5;82m428[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mC4yDhKwkikpVGCQWD9BT2SJyHAtRFFnKPDM9Nyshpump[0m heat=10428
+✅ ACTIVE: [1m[38;5;121m7k6t5KTdf7gp6THKL982TseXYoG3hQbn6Bqginsspump[0m (score=[38;5;82m424[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m7k6t5KTdf7gp6THKL982TseXYoG3hQbn6Bqginsspump[0m heat=10424
+✅ ACTIVE: [1m[38;5;121mFgr6ZejzV1nguSdkt3ugh5AdzucdHPaMsR2dCF2cpump[0m (score=[38;5;82m413[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mFgr6ZejzV1nguSdkt3ugh5AdzucdHPaMsR2dCF2cpump[0m heat=10413
+DBG ACTIVE_ROTATION start=30 removed=7 end=23
+[38;5;226m🧮 scoring[0m [38;5;117mconsidered=3420[0m [2mcalled=0[0m skips: [2mfdv=0[0m [2mconc=0[0m [2mwallet=0[0m [2mcooldown=0[0m [2msigner=0[0m [2mother=30[0m [2mqueue_dropped=0[0m [38;5;82mactive=23[0m [38;5;196mqueue=151[0m
+DBG outcomes: now_ts=1773825606
+DBG outcomes: pending=0
+[38;5;208m🫀 hb[0m local=3:27:24 AM coins=1695 active=23 queue=151 calls=0 discovered=415
+[38;5;205m🟣 pumpportal[0m added=58 coins=1753
+DBG watchlist promote: added=1 pruned=1 (min_score=50 keep=10)
+DBG helius ingest: base=https://api.helius.xyz/v0/addresses api_key_len=36 wallets=10
+DBG per_coin ingest: base=https://api.helius.xyz/v0/addresses api_key_len=36 targets=23 active=23 queue=0 top_n_hot=0
+✅ ACTIVE: [1m[38;5;121mGy83J3ejSY7CVjVcgzuGyQWk1HsyEU1Xxa1feuyw1McG[0m (score=[38;5;82m5725[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mGy83J3ejSY7CVjVcgzuGyQWk1HsyEU1Xxa1feuyw1McG[0m heat=23725
+✅ ACTIVE: [1m[38;5;121m6A88CUpdtjCG4edpzjSVwAdgCZC6Z7eQ5BvMDhLCVnER[0m (score=[38;5;82m5605[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m6A88CUpdtjCG4edpzjSVwAdgCZC6Z7eQ5BvMDhLCVnER[0m heat=23605
+✅ ACTIVE: [1m[38;5;121m4SwEr9hNFf6WR7rNUoUYkrASG5ujW3SdzkFJKcKxqDJY[0m (score=[38;5;82m4935[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m4SwEr9hNFf6WR7rNUoUYkrASG5ujW3SdzkFJKcKxqDJY[0m heat=22935
+✅ ACTIVE: [1m[38;5;121mGfBLBbHbsAzdjF17jHRSEzfaDi99bxYqSH1BTKSjmPZu[0m (score=[38;5;82m2825[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mGfBLBbHbsAzdjF17jHRSEzfaDi99bxYqSH1BTKSjmPZu[0m heat=20825
+✅ ACTIVE: [1m[38;5;121m4A4Tb7fGz87M8DqZBTTf3bGV6wxXrzkabVEcsriooSEG[0m (score=[38;5;82m1850[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m4A4Tb7fGz87M8DqZBTTf3bGV6wxXrzkabVEcsriooSEG[0m heat=19850
+✅ ACTIVE: [1m[38;5;121mfrPYyQ5C9cJtmiS7anZpE85eYXZvKCqMf2TdrdbfLso[0m (score=[38;5;82m855[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mfrPYyQ5C9cJtmiS7anZpE85eYXZvKCqMf2TdrdbfLso[0m heat=18855
+✅ ACTIVE: [1m[38;5;121me5z6ixhsvAPu1d7F9VhDpKJ7BFbD8rVE3yNRzVf9WVL[0m (score=[38;5;82m667[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121me5z6ixhsvAPu1d7F9VhDpKJ7BFbD8rVE3yNRzVf9WVL[0m heat=18667
+✅ ACTIVE: [1m[38;5;121m8LxD9ughBJq7H3ry3vdKh9LRTHZhvHfkVzVAoFiF6H5g[0m (score=[38;5;82m645[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m8LxD9ughBJq7H3ry3vdKh9LRTHZhvHfkVzVAoFiF6H5g[0m heat=18645
+✅ ACTIVE: [1m[38;5;121m13bhNTnX4bbqrB42MGZRtHMdT15ChwrdBX8VBdfCjGQu[0m (score=[38;5;82m645[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m13bhNTnX4bbqrB42MGZRtHMdT15ChwrdBX8VBdfCjGQu[0m heat=18645
+✅ ACTIVE: [1m[38;5;121mEk6YxgnyYSz2XXhGnzENUtCVRHjFaLBNQvfx6Ek6pump[0m (score=[38;5;82m459[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mEk6YxgnyYSz2XXhGnzENUtCVRHjFaLBNQvfx6Ek6pump[0m heat=18459
+✅ ACTIVE: [1m[38;5;121m3kCXgBSP7FkW4kA5GcwPVgFDbpA7pBdVF1VRETKvpump[0m (score=[38;5;82m450[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m3kCXgBSP7FkW4kA5GcwPVgFDbpA7pBdVF1VRETKvpump[0m heat=12450
+✅ ACTIVE: [1m[38;5;121mG5bRLvVFv3AFnGrJvXgqzoyKcVsbYymvV96XFZVmJtKx[0m (score=[38;5;82m591[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mG5bRLvVFv3AFnGrJvXgqzoyKcVsbYymvV96XFZVmJtKx[0m heat=10591
+✅ ACTIVE: [1m[38;5;121m412zDygnwP9DzitnQVgRKUFFTDmrYScFch6P2k39pump[0m (score=[38;5;82m466[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m412zDygnwP9DzitnQVgRKUFFTDmrYScFch6P2k39pump[0m heat=10466
+✅ ACTIVE: [1m[38;5;121mT7NMueSt3Dm1Mrktgf83q58yQ5X3fX3VpC2qjUUpump[0m (score=[38;5;82m463[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mT7NMueSt3Dm1Mrktgf83q58yQ5X3fX3VpC2qjUUpump[0m heat=10463
+✅ ACTIVE: [1m[38;5;121mG4QRtYNRPyxdKwcAqqW3xSeEynDDxEyRvrDT9FJEpump[0m (score=[38;5;82m460[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mG4QRtYNRPyxdKwcAqqW3xSeEynDDxEyRvrDT9FJEpump[0m heat=10460
+✅ ACTIVE: [1m[38;5;121m9YcjRXF7Scp3S1CXtFZS74h1eMgoRyYCPyuRpiCMpump[0m (score=[38;5;82m460[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m9YcjRXF7Scp3S1CXtFZS74h1eMgoRyYCPyuRpiCMpump[0m heat=10460
+✅ ACTIVE: [1m[38;5;121m7k6t5KTdf7gp6THKL982TseXYoG3hQbn6Bqginsspump[0m (score=[38;5;82m449[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m7k6t5KTdf7gp6THKL982TseXYoG3hQbn6Bqginsspump[0m heat=10449
+✅ ACTIVE: [1m[38;5;121mCASHx9KJUStyftLFWGvEVf59SGeG9sh5FfcnZMVPCASH[0m (score=[38;5;82m446[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mCASHx9KJUStyftLFWGvEVf59SGeG9sh5FfcnZMVPCASH[0m heat=10446
+✅ ACTIVE: [1m[38;5;121mFZvhhggPbBn5j1CiSRUvy4iD9cENpWdWtAFF9KAupump[0m (score=[38;5;82m450[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mFZvhhggPbBn5j1CiSRUvy4iD9cENpWdWtAFF9KAupump[0m heat=8450
+✅ ACTIVE: [1m[38;5;121mGaW3PKpNZ4Biq9xnqQRCaR87sikapd8rzGsV5awJpVUv[0m (score=[38;5;82m405[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mGaW3PKpNZ4Biq9xnqQRCaR87sikapd8rzGsV5awJpVUv[0m heat=4405
+✅ ACTIVE: [1m[38;5;121m2hAFnvmAcj7meNZYDxjK7hBdCWnDrfXt129CH1V8pump[0m (score=[38;5;82m368[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m2hAFnvmAcj7meNZYDxjK7hBdCWnDrfXt129CH1V8pump[0m heat=4368
+✅ ACTIVE: [1m[38;5;121mC4yDhKwkikpVGCQWD9BT2SJyHAtRFFnKPDM9Nyshpump[0m (score=[38;5;82m165[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mC4yDhKwkikpVGCQWD9BT2SJyHAtRFFnKPDM9Nyshpump[0m heat=2165
+✅ ACTIVE: [1m[38;5;121mDTDkxXoBmmyyrGBpAZbegL8z9tBoEYi58rZFEChf6Xiu[0m (score=[38;5;82m569[0m)
+DBG ACTIVE_ROTATION start=30 removed=11 end=19
+[38;5;226m🧮 scoring[0m [38;5;117mconsidered=3656[0m [2mcalled=0[0m skips: [38;5;208mfdv=1[0m [2mconc=0[0m [2mwallet=0[0m [2mcooldown=0[0m [2msigner=0[0m [2mother=29[0m [38;5;196mqueue_dropped=17[0m [38;5;82mactive=19[0m [38;5;196mqueue=145[0m
+DBG outcomes: now_ts=1773826044
+DBG outcomes: pending=0
+[38;5;208m🫀 hb[0m local=3:35:30 AM coins=1813 active=19 queue=145 calls=0 discovered=473
+[38;5;205m🟣 pumpportal[0m added=74 coins=1887
+DBG watchlist promote: added=1 pruned=1 (min_score=50 keep=10)
+DBG helius ingest: base=https://api.helius.xyz/v0/addresses api_key_len=36 wallets=10
+DBG per_coin ingest: base=https://api.helius.xyz/v0/addresses api_key_len=36 targets=19 active=19 queue=0 top_n_hot=0
+✅ ACTIVE: [1m[38;5;121mDekcnehFjbKxbzpZcqFYWm4oGREeyaw1qQYdw3DKsKSW[0m (score=[38;5;82m5180[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mDekcnehFjbKxbzpZcqFYWm4oGREeyaw1qQYdw3DKsKSW[0m heat=23180
+✅ ACTIVE: [1m[38;5;121m86UBB8g7z9jMZ1GYxTEbiHoLwHWu7fTxuLq72nYaTH7E[0m (score=[38;5;82m2065[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m86UBB8g7z9jMZ1GYxTEbiHoLwHWu7fTxuLq72nYaTH7E[0m heat=20065
+✅ ACTIVE: [1m[38;5;121mBDJYXKWfFD3JGUZCCvwq9ff3t7gsr9YSoKFvPioeVYNr[0m (score=[38;5;82m1180[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mBDJYXKWfFD3JGUZCCvwq9ff3t7gsr9YSoKFvPioeVYNr[0m heat=19180
+✅ ACTIVE: [1m[38;5;121m5HsdWkRJEKN26DroR5xMKqoh85dmkfPkAq19t171E7on[0m (score=[38;5;82m1095[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m5HsdWkRJEKN26DroR5xMKqoh85dmkfPkAq19t171E7on[0m heat=19095
+✅ ACTIVE: [1m[38;5;121m4K4qF5QrX8KfY4qAh5JobgGwaZShE13591C8JUrnj7gi[0m (score=[38;5;82m865[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m4K4qF5QrX8KfY4qAh5JobgGwaZShE13591C8JUrnj7gi[0m heat=18865
+✅ ACTIVE: [1m[38;5;121mGHKFvqjgssASm8yMgr1DgJVCf7geVhnGUfkTAn9PpRDF[0m (score=[38;5;82m710[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mGHKFvqjgssASm8yMgr1DgJVCf7geVhnGUfkTAn9PpRDF[0m heat=18710
+✅ ACTIVE: [1m[38;5;121m9YcjRXF7Scp3S1CXtFZS74h1eMgoRyYCPyuRpiCMpump[0m (score=[38;5;82m457[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m9YcjRXF7Scp3S1CXtFZS74h1eMgoRyYCPyuRpiCMpump[0m heat=12457
+✅ ACTIVE: [1m[38;5;121mG4QRtYNRPyxdKwcAqqW3xSeEynDDxEyRvrDT9FJEpump[0m (score=[38;5;82m459[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mG4QRtYNRPyxdKwcAqqW3xSeEynDDxEyRvrDT9FJEpump[0m heat=10459
+✅ ACTIVE: [1m[38;5;121m5QmbJw7mM6tcCdXVy8ftc2bu8izded7Etc57TMA2pump[0m (score=[38;5;82m459[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m5QmbJw7mM6tcCdXVy8ftc2bu8izded7Etc57TMA2pump[0m heat=10459
+✅ ACTIVE: [1m[38;5;121mT7NMueSt3Dm1Mrktgf83q58yQ5X3fX3VpC2qjUUpump[0m (score=[38;5;82m440[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mT7NMueSt3Dm1Mrktgf83q58yQ5X3fX3VpC2qjUUpump[0m heat=10440
+✅ ACTIVE: [1m[38;5;121mCASHx9KJUStyftLFWGvEVf59SGeG9sh5FfcnZMVPCASH[0m (score=[38;5;82m420[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mCASHx9KJUStyftLFWGvEVf59SGeG9sh5FfcnZMVPCASH[0m heat=10420
+✅ ACTIVE: [1m[38;5;121m2arV8Mj9aF9BZv5iXxexody9Wu5JwNaThpt3f38gkEAy[0m (score=[38;5;82m869[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m2arV8Mj9aF9BZv5iXxexody9Wu5JwNaThpt3f38gkEAy[0m heat=8869
+✅ ACTIVE: [1m[38;5;121m2vqBBdyBPC1s4yhrDJuoKz7xRtTkJ2TH11PeSrKtGBr6[0m (score=[38;5;82m400[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m2vqBBdyBPC1s4yhrDJuoKz7xRtTkJ2TH11PeSrKtGBr6[0m heat=8400
+✅ ACTIVE: [1m[38;5;121mGy83J3ejSY7CVjVcgzuGyQWk1HsyEU1Xxa1feuyw1McG[0m (score=[38;5;82m345[0m)
+✅ ACTIVE: [1m[38;5;121mFZvhhggPbBn5j1CiSRUvy4iD9cENpWdWtAFF9KAupump[0m (score=[38;5;82m345[0m)
+✅ ACTIVE: [1m[38;5;121mGfBLBbHbsAzdjF17jHRSEzfaDi99bxYqSH1BTKSjmPZu[0m (score=[38;5;82m345[0m)
+✅ ACTIVE: [1m[38;5;121m6A88CUpdtjCG4edpzjSVwAdgCZC6Z7eQ5BvMDhLCVnER[0m (score=[38;5;82m345[0m)
+✅ ACTIVE: [1m[38;5;121m4SwEr9hNFf6WR7rNUoUYkrASG5ujW3SdzkFJKcKxqDJY[0m (score=[38;5;82m345[0m)
+✅ ACTIVE: [1m[38;5;121m4A4Tb7fGz87M8DqZBTTf3bGV6wxXrzkabVEcsriooSEG[0m (score=[38;5;82m345[0m)
+✅ ACTIVE: [1m[38;5;121m64xJESBVN3CBeYBi3zEWKd2RLVtNxxy8xDo638vBtQC9[0m (score=[38;5;82m335[0m)
+✅ ACTIVE: [1m[38;5;121me5z6ixhsvAPu1d7F9VhDpKJ7BFbD8rVE3yNRzVf9WVL[0m (score=[38;5;82m300[0m)
+✅ ACTIVE: [1m[38;5;121m3zomtMhRRsBpLZeJLS86fgueXE7xAhoN8dnymNh8pump[0m (score=[38;5;82m252[0m)
+✅ ACTIVE: [1m[38;5;121m6ASzq6XN7GdDZeXy6jLM1Vie7QtQJ16MhHyaXJbAw7kH[0m (score=[38;5;82m250[0m)
+✅ ACTIVE: [1m[38;5;121mxsJa4TzmufBynZqmRLETFfkMBJDDug6CKxPkqrdpump[0m (score=[38;5;82m243[0m)
+DBG ACTIVE_ROTATION start=30 removed=12 end=18
+[38;5;226m🧮 scoring[0m [38;5;117mconsidered=3930[0m [2mcalled=0[0m skips: [38;5;208mfdv=1[0m [2mconc=0[0m [2mwallet=0[0m [2mcooldown=0[0m [2msigner=0[0m [2mother=29[0m [38;5;196mqueue_dropped=25[0m [38;5;82mactive=18[0m [38;5;196mqueue=163[0m
+DBG outcomes: now_ts=1773826530
+DBG outcomes: pending=0
+[38;5;208m🫀 hb[0m local=3:43:19 AM coins=1950 active=18 queue=163 calls=0 discovered=547
+[38;5;205m🟣 pumpportal[0m added=52 coins=2002
+[38;5;117m🕵️ discovery[0m got=2 added=1 coins=2002
+DBG watchlist promote: added=1 pruned=1 (min_score=50 keep=10)
+DBG helius ingest: base=https://api.helius.xyz/v0/addresses api_key_len=36 wallets=10
+DBG per_coin ingest: base=https://api.helius.xyz/v0/addresses api_key_len=36 targets=18 active=18 queue=0 top_n_hot=0
+✅ ACTIVE: [1m[38;5;121mGy83J3ejSY7CVjVcgzuGyQWk1HsyEU1Xxa1feuyw1McG[0m (score=[38;5;82m5725[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mGy83J3ejSY7CVjVcgzuGyQWk1HsyEU1Xxa1feuyw1McG[0m heat=23725
+✅ ACTIVE: [1m[38;5;121m8LxD9ughBJq7H3ry3vdKh9LRTHZhvHfkVzVAoFiF6H5g[0m (score=[38;5;82m5660[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m8LxD9ughBJq7H3ry3vdKh9LRTHZhvHfkVzVAoFiF6H5g[0m heat=23660
+✅ ACTIVE: [1m[38;5;121mDTDkxXoBmmyyrGBpAZbegL8z9tBoEYi58rZFEChf6Xiu[0m (score=[38;5;82m3225[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mDTDkxXoBmmyyrGBpAZbegL8z9tBoEYi58rZFEChf6Xiu[0m heat=21225
+✅ ACTIVE: [1m[38;5;121m13bhNTnX4bbqrB42MGZRtHMdT15ChwrdBX8VBdfCjGQu[0m (score=[38;5;82m700[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m13bhNTnX4bbqrB42MGZRtHMdT15ChwrdBX8VBdfCjGQu[0m heat=18700
+✅ ACTIVE: [1m[38;5;121me5z6ixhsvAPu1d7F9VhDpKJ7BFbD8rVE3yNRzVf9WVL[0m (score=[38;5;82m669[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121me5z6ixhsvAPu1d7F9VhDpKJ7BFbD8rVE3yNRzVf9WVL[0m heat=18669
+✅ ACTIVE: [1m[38;5;121mfrPYyQ5C9cJtmiS7anZpE85eYXZvKCqMf2TdrdbfLso[0m (score=[38;5;82m620[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mfrPYyQ5C9cJtmiS7anZpE85eYXZvKCqMf2TdrdbfLso[0m heat=18620
+✅ ACTIVE: [1m[38;5;121mDekcnehFjbKxbzpZcqFYWm4oGREeyaw1qQYdw3DKsKSW[0m (score=[38;5;82m620[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mDekcnehFjbKxbzpZcqFYWm4oGREeyaw1qQYdw3DKsKSW[0m heat=18620
+✅ ACTIVE: [1m[38;5;121mG5bRLvVFv3AFnGrJvXgqzoyKcVsbYymvV96XFZVmJtKx[0m (score=[38;5;82m482[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mG5bRLvVFv3AFnGrJvXgqzoyKcVsbYymvV96XFZVmJtKx[0m heat=12482
+✅ ACTIVE: [1m[38;5;121m3kCXgBSP7FkW4kA5GcwPVgFDbpA7pBdVF1VRETKvpump[0m (score=[38;5;82m439[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m3kCXgBSP7FkW4kA5GcwPVgFDbpA7pBdVF1VRETKvpump[0m heat=12439
+✅ ACTIVE: [1m[38;5;121m3zomtMhRRsBpLZeJLS86fgueXE7xAhoN8dnymNh8pump[0m (score=[38;5;82m563[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m3zomtMhRRsBpLZeJLS86fgueXE7xAhoN8dnymNh8pump[0m heat=10563
+✅ ACTIVE: [1m[38;5;121mG4QRtYNRPyxdKwcAqqW3xSeEynDDxEyRvrDT9FJEpump[0m (score=[38;5;82m434[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mG4QRtYNRPyxdKwcAqqW3xSeEynDDxEyRvrDT9FJEpump[0m heat=10434
+✅ ACTIVE: [1m[38;5;121mCASHx9KJUStyftLFWGvEVf59SGeG9sh5FfcnZMVPCASH[0m (score=[38;5;82m420[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mCASHx9KJUStyftLFWGvEVf59SGeG9sh5FfcnZMVPCASH[0m heat=10420
+✅ ACTIVE: [1m[38;5;121m3YGcNnE7YsaYfMzizqmUe7u4YFZsL2S7jH5jD7anpump[0m (score=[38;5;82m392[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m3YGcNnE7YsaYfMzizqmUe7u4YFZsL2S7jH5jD7anpump[0m heat=10392
+✅ ACTIVE: [1m[38;5;121m4fSWEw2wbYEUCcMtitzmeGUfqinoafXxkhqZrA9Gpump[0m (score=[38;5;82m387[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m4fSWEw2wbYEUCcMtitzmeGUfqinoafXxkhqZrA9Gpump[0m heat=10387
+✅ ACTIVE: [1m[38;5;121mDVHzx6VnGwB8VLFVMJJPFND1RPvWwf9mTjYaWtjGpump[0m (score=[38;5;82m387[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mDVHzx6VnGwB8VLFVMJJPFND1RPvWwf9mTjYaWtjGpump[0m heat=10387
+✅ ACTIVE: [1m[38;5;121m2zLvKDtNSUT74Q98mpS2LntiXmF2prTpkhm4XiVwpump[0m (score=[38;5;82m371[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m2zLvKDtNSUT74Q98mpS2LntiXmF2prTpkhm4XiVwpump[0m heat=10371
+✅ ACTIVE: [1m[38;5;121mCc4THQn4g26wRnygVmQSGiqMuzJJumqba62PNepspump[0m (score=[38;5;82m361[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mCc4THQn4g26wRnygVmQSGiqMuzJJumqba62PNepspump[0m heat=10361
+✅ ACTIVE: [1m[38;5;121mCX3GwRuNrNprpLPLYoSwWVLv5iBVQajMPCggBcG2pump[0m (score=[38;5;82m350[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mCX3GwRuNrNprpLPLYoSwWVLv5iBVQajMPCggBcG2pump[0m heat=10350
+✅ ACTIVE: [1m[38;5;121m2vqBBdyBPC1s4yhrDJuoKz7xRtTkJ2TH11PeSrKtGBr6[0m (score=[38;5;82m320[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m2vqBBdyBPC1s4yhrDJuoKz7xRtTkJ2TH11PeSrKtGBr6[0m heat=8320
+✅ ACTIVE: [1m[38;5;121m2hAFnvmAcj7meNZYDxjK7hBdCWnDrfXt129CH1V8pump[0m (score=[38;5;82m333[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m2hAFnvmAcj7meNZYDxjK7hBdCWnDrfXt129CH1V8pump[0m heat=4333
+✅ ACTIVE: [1m[38;5;121m7BS2WtZgT5J8TGeWCWPwLPwdmc8W81xFCGHNesRLB1z6[0m (score=[38;5;82m345[0m)
+✅ ACTIVE: [1m[38;5;121m5UCNsNY2oHDB7i2m8bW7nKJXxRoh5WS4N4xKmUB2pump[0m (score=[38;5;82m345[0m)
+✅ ACTIVE: [1m[38;5;121m48X29D1jnuKbuRVeUXKAUzEHB82vYTuwxWS5VrkY5bq2[0m (score=[38;5;82m345[0m)
+✅ ACTIVE: [1m[38;5;121m86UBB8g7z9jMZ1GYxTEbiHoLwHWu7fTxuLq72nYaTH7E[0m (score=[38;5;82m345[0m)
+DBG ACTIVE_ROTATION start=30 removed=7 end=23
+[38;5;226m🧮 scoring[0m [38;5;117mconsidered=4164[0m [2mcalled=0[0m skips: [38;5;208mfdv=2[0m [2mconc=0[0m [2mwallet=0[0m [2mcooldown=0[0m [2msigner=0[0m [2mother=28[0m [38;5;196mqueue_dropped=7[0m [38;5;82mactive=23[0m [38;5;196mqueue=195[0m
+DBG outcomes: now_ts=1773826999
+DBG outcomes: pending=0
+[38;5;208m🫀 hb[0m local=3:51:14 AM coins=2067 active=23 queue=195 calls=0 discovered=600
+[38;5;205m🟣 pumpportal[0m added=73 coins=2140
+DBG watchlist promote: added=1 pruned=1 (min_score=50 keep=10)
+DBG helius ingest: base=https://api.helius.xyz/v0/addresses api_key_len=36 wallets=10
+DBG per_coin ingest: base=https://api.helius.xyz/v0/addresses api_key_len=36 targets=23 active=23 queue=0 top_n_hot=0
+✅ ACTIVE: [1m[38;5;121mGy83J3ejSY7CVjVcgzuGyQWk1HsyEU1Xxa1feuyw1McG[0m (score=[38;5;82m5725[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mGy83J3ejSY7CVjVcgzuGyQWk1HsyEU1Xxa1feuyw1McG[0m heat=23725
+✅ ACTIVE: [1m[38;5;121m2arV8Mj9aF9BZv5iXxexody9Wu5JwNaThpt3f38gkEAy[0m (score=[38;5;82m5725[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m2arV8Mj9aF9BZv5iXxexody9Wu5JwNaThpt3f38gkEAy[0m heat=23725
+✅ ACTIVE: [1m[38;5;121m6A88CUpdtjCG4edpzjSVwAdgCZC6Z7eQ5BvMDhLCVnER[0m (score=[38;5;82m5655[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m6A88CUpdtjCG4edpzjSVwAdgCZC6Z7eQ5BvMDhLCVnER[0m heat=23655
+✅ ACTIVE: [1m[38;5;121m4SwEr9hNFf6WR7rNUoUYkrASG5ujW3SdzkFJKcKxqDJY[0m (score=[38;5;82m4795[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m4SwEr9hNFf6WR7rNUoUYkrASG5ujW3SdzkFJKcKxqDJY[0m heat=22795
+✅ ACTIVE: [1m[38;5;121mDekcnehFjbKxbzpZcqFYWm4oGREeyaw1qQYdw3DKsKSW[0m (score=[38;5;82m4663[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mDekcnehFjbKxbzpZcqFYWm4oGREeyaw1qQYdw3DKsKSW[0m heat=22663
+✅ ACTIVE: [1m[38;5;121mGfBLBbHbsAzdjF17jHRSEzfaDi99bxYqSH1BTKSjmPZu[0m (score=[38;5;82m3065[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mGfBLBbHbsAzdjF17jHRSEzfaDi99bxYqSH1BTKSjmPZu[0m heat=21065
+✅ ACTIVE: [1m[38;5;121m4A4Tb7fGz87M8DqZBTTf3bGV6wxXrzkabVEcsriooSEG[0m (score=[38;5;82m1735[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m4A4Tb7fGz87M8DqZBTTf3bGV6wxXrzkabVEcsriooSEG[0m heat=19735
+✅ ACTIVE: [1m[38;5;121mFZvhhggPbBn5j1CiSRUvy4iD9cENpWdWtAFF9KAupump[0m (score=[38;5;82m1180[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mFZvhhggPbBn5j1CiSRUvy4iD9cENpWdWtAFF9KAupump[0m heat=19180
+✅ ACTIVE: [1m[38;5;121me5z6ixhsvAPu1d7F9VhDpKJ7BFbD8rVE3yNRzVf9WVL[0m (score=[38;5;82m663[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121me5z6ixhsvAPu1d7F9VhDpKJ7BFbD8rVE3yNRzVf9WVL[0m heat=18663
+✅ ACTIVE: [1m[38;5;121mG5bRLvVFv3AFnGrJvXgqzoyKcVsbYymvV96XFZVmJtKx[0m (score=[38;5;82m723[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mG5bRLvVFv3AFnGrJvXgqzoyKcVsbYymvV96XFZVmJtKx[0m heat=14723
+✅ ACTIVE: [1m[38;5;121m5UCNsNY2oHDB7i2m8bW7nKJXxRoh5WS4N4xKmUB2pump[0m (score=[38;5;82m815[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m5UCNsNY2oHDB7i2m8bW7nKJXxRoh5WS4N4xKmUB2pump[0m heat=10815
+✅ ACTIVE: [1m[38;5;121mBDJYXKWfFD3JGUZCCvwq9ff3t7gsr9YSoKFvPioeVYNr[0m (score=[38;5;82m645[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mBDJYXKWfFD3JGUZCCvwq9ff3t7gsr9YSoKFvPioeVYNr[0m heat=10645
+✅ ACTIVE: [1m[38;5;121mGFRXBG6qAwR2JEkbdKgbMLbT7MVfjPBMDf1bEr4apump[0m (score=[38;5;82m580[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mGFRXBG6qAwR2JEkbdKgbMLbT7MVfjPBMDf1bEr4apump[0m heat=10580
+✅ ACTIVE: [1m[38;5;121mxsJa4TzmufBynZqmRLETFfkMBJDDug6CKxPkqrdpump[0m (score=[38;5;82m511[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mxsJa4TzmufBynZqmRLETFfkMBJDDug6CKxPkqrdpump[0m heat=10511
+✅ ACTIVE: [1m[38;5;121m6D1hQ22C7oCUKKVuy91i8HTHnzSjsHCuNAcH9WH2pump[0m (score=[38;5;82m502[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m6D1hQ22C7oCUKKVuy91i8HTHnzSjsHCuNAcH9WH2pump[0m heat=10502
+✅ ACTIVE: [1m[38;5;121m5qZod5srbAecRhNDzZDUrnfBdnsxrRfQ6peeDFy3pump[0m (score=[38;5;82m489[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m5qZod5srbAecRhNDzZDUrnfBdnsxrRfQ6peeDFy3pump[0m heat=10489
+✅ ACTIVE: [1m[38;5;121m3kCXgBSP7FkW4kA5GcwPVgFDbpA7pBdVF1VRETKvpump[0m (score=[38;5;82m464[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m3kCXgBSP7FkW4kA5GcwPVgFDbpA7pBdVF1VRETKvpump[0m heat=10464
+✅ ACTIVE: [1m[38;5;121m9YcjRXF7Scp3S1CXtFZS74h1eMgoRyYCPyuRpiCMpump[0m (score=[38;5;82m457[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m9YcjRXF7Scp3S1CXtFZS74h1eMgoRyYCPyuRpiCMpump[0m heat=10457
+✅ ACTIVE: [1m[38;5;121mCASHx9KJUStyftLFWGvEVf59SGeG9sh5FfcnZMVPCASH[0m (score=[38;5;82m445[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mCASHx9KJUStyftLFWGvEVf59SGeG9sh5FfcnZMVPCASH[0m heat=10445
+✅ ACTIVE: [1m[38;5;121mDVHzx6VnGwB8VLFVMJJPFND1RPvWwf9mTjYaWtjGpump[0m (score=[38;5;82m443[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mDVHzx6VnGwB8VLFVMJJPFND1RPvWwf9mTjYaWtjGpump[0m heat=10443
+✅ ACTIVE: [1m[38;5;121m3YGcNnE7YsaYfMzizqmUe7u4YFZsL2S7jH5jD7anpump[0m (score=[38;5;82m439[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m3YGcNnE7YsaYfMzizqmUe7u4YFZsL2S7jH5jD7anpump[0m heat=10439
+✅ ACTIVE: [1m[38;5;121mCX3GwRuNrNprpLPLYoSwWVLv5iBVQajMPCggBcG2pump[0m (score=[38;5;82m415[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mCX3GwRuNrNprpLPLYoSwWVLv5iBVQajMPCggBcG2pump[0m heat=10415
+✅ ACTIVE: [1m[38;5;121m2zLvKDtNSUT74Q98mpS2LntiXmF2prTpkhm4XiVwpump[0m (score=[38;5;82m403[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m2zLvKDtNSUT74Q98mpS2LntiXmF2prTpkhm4XiVwpump[0m heat=10403
+✅ ACTIVE: [1m[38;5;121m3ePisYKwTc7iTc3jgYRtVRvrvyHgce3pbDiFkq9Epump[0m (score=[38;5;82m381[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m3ePisYKwTc7iTc3jgYRtVRvrvyHgce3pbDiFkq9Epump[0m heat=10381
+✅ ACTIVE: [1m[38;5;121m2vqBBdyBPC1s4yhrDJuoKz7xRtTkJ2TH11PeSrKtGBr6[0m (score=[38;5;82m845[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m2vqBBdyBPC1s4yhrDJuoKz7xRtTkJ2TH11PeSrKtGBr6[0m heat=8845
+✅ ACTIVE: [1m[38;5;121m4K4qF5QrX8KfY4qAh5JobgGwaZShE13591C8JUrnj7gi[0m (score=[38;5;82m345[0m)
+✅ ACTIVE: [1m[38;5;121mBwWrV6yfCNV87ptMeqz5CMpzcWNW1D6QPtKCuy51r3wx[0m (score=[38;5;82m345[0m)
+✅ ACTIVE: [1m[38;5;121mGaW3PKpNZ4Biq9xnqQRCaR87sikapd8rzGsV5awJpVUv[0m (score=[38;5;82m345[0m)
+✅ ACTIVE: [1m[38;5;121m5HsdWkRJEKN26DroR5xMKqoh85dmkfPkAq19t171E7on[0m (score=[38;5;82m345[0m)
+✅ ACTIVE: [1m[38;5;121m48X29D1jnuKbuRVeUXKAUzEHB82vYTuwxWS5VrkY5bq2[0m (score=[38;5;82m345[0m)
+DBG ACTIVE_ROTATION start=30 removed=10 end=20
+[38;5;226m🧮 scoring[0m [38;5;117mconsidered=4456[0m [2mcalled=0[0m skips: [38;5;208mfdv=1[0m [2mconc=0[0m [2mwallet=0[0m [2mcooldown=0[0m [2msigner=0[0m [2mother=29[0m [38;5;196mqueue_dropped=19[0m [38;5;82mactive=20[0m [38;5;196mqueue=186[0m
+DBG outcomes: now_ts=1773827474
+DBG outcomes: pending=0
+[38;5;208m🫀 hb[0m local=3:59:39 AM coins=2213 active=20 queue=186 calls=0 discovered=673
+[38;5;205m🟣 pumpportal[0m added=64 coins=2277
+DBG watchlist promote: added=1 pruned=1 (min_score=50 keep=10)
+DBG helius ingest: base=https://api.helius.xyz/v0/addresses api_key_len=36 wallets=10
+DBG per_coin ingest: base=https://api.helius.xyz/v0/addresses api_key_len=36 targets=20 active=20 queue=0 top_n_hot=0
+✅ ACTIVE: [1m[38;5;121mDekcnehFjbKxbzpZcqFYWm4oGREeyaw1qQYdw3DKsKSW[0m (score=[38;5;82m5115[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mDekcnehFjbKxbzpZcqFYWm4oGREeyaw1qQYdw3DKsKSW[0m heat=23115
+✅ ACTIVE: [1m[38;5;121m5HsdWkRJEKN26DroR5xMKqoh85dmkfPkAq19t171E7on[0m (score=[38;5;82m2700[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m5HsdWkRJEKN26DroR5xMKqoh85dmkfPkAq19t171E7on[0m heat=20700
+✅ ACTIVE: [1m[38;5;121mG5bRLvVFv3AFnGrJvXgqzoyKcVsbYymvV96XFZVmJtKx[0m (score=[38;5;82m824[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mG5bRLvVFv3AFnGrJvXgqzoyKcVsbYymvV96XFZVmJtKx[0m heat=18824
+✅ ACTIVE: [1m[38;5;121mGFRXBG6qAwR2JEkbdKgbMLbT7MVfjPBMDf1bEr4apump[0m (score=[38;5;82m745[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mGFRXBG6qAwR2JEkbdKgbMLbT7MVfjPBMDf1bEr4apump[0m heat=18745
+✅ ACTIVE: [1m[38;5;121m4SwEr9hNFf6WR7rNUoUYkrASG5ujW3SdzkFJKcKxqDJY[0m (score=[38;5;82m645[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m4SwEr9hNFf6WR7rNUoUYkrASG5ujW3SdzkFJKcKxqDJY[0m heat=18645
+✅ ACTIVE: [1m[38;5;121mFZvhhggPbBn5j1CiSRUvy4iD9cENpWdWtAFF9KAupump[0m (score=[38;5;82m645[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mFZvhhggPbBn5j1CiSRUvy4iD9cENpWdWtAFF9KAupump[0m heat=14645
+✅ ACTIVE: [1m[38;5;121m4A4Tb7fGz87M8DqZBTTf3bGV6wxXrzkabVEcsriooSEG[0m (score=[38;5;82m645[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m4A4Tb7fGz87M8DqZBTTf3bGV6wxXrzkabVEcsriooSEG[0m heat=14645
+✅ ACTIVE: [1m[38;5;121mEUfRMccYw5E8Jv7NFmcpgKVFABqTr3QVputRQrbZpump[0m (score=[38;5;82m532[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mEUfRMccYw5E8Jv7NFmcpgKVFABqTr3QVputRQrbZpump[0m heat=14532
+✅ ACTIVE: [1m[38;5;121m3kCXgBSP7FkW4kA5GcwPVgFDbpA7pBdVF1VRETKvpump[0m (score=[38;5;82m454[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m3kCXgBSP7FkW4kA5GcwPVgFDbpA7pBdVF1VRETKvpump[0m heat=14454
+✅ ACTIVE: [1m[38;5;121mCASHx9KJUStyftLFWGvEVf59SGeG9sh5FfcnZMVPCASH[0m (score=[38;5;82m446[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mCASHx9KJUStyftLFWGvEVf59SGeG9sh5FfcnZMVPCASH[0m heat=14446
+✅ ACTIVE: [1m[38;5;121m2hAFnvmAcj7meNZYDxjK7hBdCWnDrfXt129CH1V8pump[0m (score=[38;5;82m646[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m2hAFnvmAcj7meNZYDxjK7hBdCWnDrfXt129CH1V8pump[0m heat=12646
+✅ ACTIVE: [1m[38;5;121me5z6ixhsvAPu1d7F9VhDpKJ7BFbD8rVE3yNRzVf9WVL[0m (score=[38;5;82m583[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121me5z6ixhsvAPu1d7F9VhDpKJ7BFbD8rVE3yNRzVf9WVL[0m heat=12583
+✅ ACTIVE: [1m[38;5;121mfrPYyQ5C9cJtmiS7anZpE85eYXZvKCqMf2TdrdbfLso[0m (score=[38;5;82m645[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mfrPYyQ5C9cJtmiS7anZpE85eYXZvKCqMf2TdrdbfLso[0m heat=10645
+✅ ACTIVE: [1m[38;5;121mDTDkxXoBmmyyrGBpAZbegL8z9tBoEYi58rZFEChf6Xiu[0m (score=[38;5;82m645[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mDTDkxXoBmmyyrGBpAZbegL8z9tBoEYi58rZFEChf6Xiu[0m heat=10645
+✅ ACTIVE: [1m[38;5;121m8LxD9ughBJq7H3ry3vdKh9LRTHZhvHfkVzVAoFiF6H5g[0m (score=[38;5;82m645[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m8LxD9ughBJq7H3ry3vdKh9LRTHZhvHfkVzVAoFiF6H5g[0m heat=10645
+✅ ACTIVE: [1m[38;5;121mGfBLBbHbsAzdjF17jHRSEzfaDi99bxYqSH1BTKSjmPZu[0m (score=[38;5;82m645[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mGfBLBbHbsAzdjF17jHRSEzfaDi99bxYqSH1BTKSjmPZu[0m heat=10645
+✅ ACTIVE: [1m[38;5;121m6A88CUpdtjCG4edpzjSVwAdgCZC6Z7eQ5BvMDhLCVnER[0m (score=[38;5;82m645[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m6A88CUpdtjCG4edpzjSVwAdgCZC6Z7eQ5BvMDhLCVnER[0m heat=10645
+✅ ACTIVE: [1m[38;5;121mBFo95HPnWd2qtqJPaw4doQFv1mRmerEKW3n2H9tgpump[0m (score=[38;5;82m630[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mBFo95HPnWd2qtqJPaw4doQFv1mRmerEKW3n2H9tgpump[0m heat=10630
+✅ ACTIVE: [1m[38;5;121m5UCNsNY2oHDB7i2m8bW7nKJXxRoh5WS4N4xKmUB2pump[0m (score=[38;5;82m592[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m5UCNsNY2oHDB7i2m8bW7nKJXxRoh5WS4N4xKmUB2pump[0m heat=10592
+✅ ACTIVE: [1m[38;5;121mEZLAyGAm79u65dnTQWk86KAmK6yGwyr6vkJCFvJGX99x[0m (score=[38;5;82m587[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mEZLAyGAm79u65dnTQWk86KAmK6yGwyr6vkJCFvJGX99x[0m heat=10587
+✅ ACTIVE: [1m[38;5;121moALA4sNDW3Qr4PjZ984R8LPpyuN5gSknuUPGbfGpump[0m (score=[38;5;82m524[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121moALA4sNDW3Qr4PjZ984R8LPpyuN5gSknuUPGbfGpump[0m heat=10524
+✅ ACTIVE: [1m[38;5;121mxsJa4TzmufBynZqmRLETFfkMBJDDug6CKxPkqrdpump[0m (score=[38;5;82m510[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mxsJa4TzmufBynZqmRLETFfkMBJDDug6CKxPkqrdpump[0m heat=10510
+✅ ACTIVE: [1m[38;5;121m3zomtMhRRsBpLZeJLS86fgueXE7xAhoN8dnymNh8pump[0m (score=[38;5;82m469[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m3zomtMhRRsBpLZeJLS86fgueXE7xAhoN8dnymNh8pump[0m heat=10469
+✅ ACTIVE: [1m[38;5;121mAEtWwKRUfvgyMVDWLvNYgeTiVAC1YfRujmyssrG6pump[0m (score=[38;5;82m460[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mAEtWwKRUfvgyMVDWLvNYgeTiVAC1YfRujmyssrG6pump[0m heat=10460
+✅ ACTIVE: [1m[38;5;121mG4QRtYNRPyxdKwcAqqW3xSeEynDDxEyRvrDT9FJEpump[0m (score=[38;5;82m459[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mG4QRtYNRPyxdKwcAqqW3xSeEynDDxEyRvrDT9FJEpump[0m heat=10459
+✅ ACTIVE: [1m[38;5;121m9YcjRXF7Scp3S1CXtFZS74h1eMgoRyYCPyuRpiCMpump[0m (score=[38;5;82m453[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m9YcjRXF7Scp3S1CXtFZS74h1eMgoRyYCPyuRpiCMpump[0m heat=10453
+✅ ACTIVE: [1m[38;5;121m5qZod5srbAecRhNDzZDUrnfBdnsxrRfQ6peeDFy3pump[0m (score=[38;5;82m441[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m5qZod5srbAecRhNDzZDUrnfBdnsxrRfQ6peeDFy3pump[0m heat=10441
+✅ ACTIVE: [1m[38;5;121mFgr6ZejzV1nguSdkt3ugh5AdzucdHPaMsR2dCF2cpump[0m (score=[38;5;82m440[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mFgr6ZejzV1nguSdkt3ugh5AdzucdHPaMsR2dCF2cpump[0m heat=10440
+✅ ACTIVE: [1m[38;5;121m3YGcNnE7YsaYfMzizqmUe7u4YFZsL2S7jH5jD7anpump[0m (score=[38;5;82m438[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m3YGcNnE7YsaYfMzizqmUe7u4YFZsL2S7jH5jD7anpump[0m heat=10438
+✅ ACTIVE: [1m[38;5;121mBuBRWo1rvrxXBvZY6uiQdbUZhkG9i51feRxeTPTMpump[0m (score=[38;5;82m438[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mBuBRWo1rvrxXBvZY6uiQdbUZhkG9i51feRxeTPTMpump[0m heat=10438
+DBG ACTIVE_ROTATION start=30 removed=6 end=24
+[38;5;226m🧮 scoring[0m [38;5;117mconsidered=4730[0m [2mcalled=0[0m skips: [38;5;208mfdv=1[0m [2mconc=0[0m [2mwallet=0[0m [2mcooldown=0[0m [2msigner=0[0m [2mother=29[0m [38;5;196mqueue_dropped=8[0m [38;5;82mactive=24[0m [38;5;196mqueue=205[0m
+DBG outcomes: now_ts=1773827979
+DBG outcomes: pending=0
+[38;5;208m🫀 hb[0m local=4:07:40 AM coins=2350 active=24 queue=205 calls=0 discovered=737
+[38;5;205m🟣 pumpportal[0m added=102 coins=2452
+DBG watchlist promote: added=1 pruned=1 (min_score=50 keep=10)
+DBG helius ingest: base=https://api.helius.xyz/v0/addresses api_key_len=36 wallets=10
+DBG per_coin ingest: base=https://api.helius.xyz/v0/addresses api_key_len=36 targets=24 active=24 queue=0 top_n_hot=0
+✅ ACTIVE: [1m[38;5;121mGFRXBG6qAwR2JEkbdKgbMLbT7MVfjPBMDf1bEr4apump[0m (score=[38;5;82m784[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mGFRXBG6qAwR2JEkbdKgbMLbT7MVfjPBMDf1bEr4apump[0m heat=18784
+✅ ACTIVE: [1m[38;5;121m9YcjRXF7Scp3S1CXtFZS74h1eMgoRyYCPyuRpiCMpump[0m (score=[38;5;82m448[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m9YcjRXF7Scp3S1CXtFZS74h1eMgoRyYCPyuRpiCMpump[0m heat=14448
+✅ ACTIVE: [1m[38;5;121m5HsdWkRJEKN26DroR5xMKqoh85dmkfPkAq19t171E7on[0m (score=[38;5;82m2955[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m5HsdWkRJEKN26DroR5xMKqoh85dmkfPkAq19t171E7on[0m heat=10955
+✅ ACTIVE: [1m[38;5;121mBDJYXKWfFD3JGUZCCvwq9ff3t7gsr9YSoKFvPioeVYNr[0m (score=[38;5;82m645[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mBDJYXKWfFD3JGUZCCvwq9ff3t7gsr9YSoKFvPioeVYNr[0m heat=10645
+✅ ACTIVE: [1m[38;5;121m4K4qF5QrX8KfY4qAh5JobgGwaZShE13591C8JUrnj7gi[0m (score=[38;5;82m645[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m4K4qF5QrX8KfY4qAh5JobgGwaZShE13591C8JUrnj7gi[0m heat=10645
+✅ ACTIVE: [1m[38;5;121m2arV8Mj9aF9BZv5iXxexody9Wu5JwNaThpt3f38gkEAy[0m (score=[38;5;82m645[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m2arV8Mj9aF9BZv5iXxexody9Wu5JwNaThpt3f38gkEAy[0m heat=10645
+✅ ACTIVE: [1m[38;5;121mV539dLwHm7uNrYupf69rF5JpgB73MYdEKwi9kwxfVvY[0m (score=[38;5;82m635[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mV539dLwHm7uNrYupf69rF5JpgB73MYdEKwi9kwxfVvY[0m heat=10635
+✅ ACTIVE: [1m[38;5;121mBnzWSGW2zpmD2UBurn1mY1nm4KJwXZH2UJ863iH7tzp1[0m (score=[38;5;82m635[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mBnzWSGW2zpmD2UBurn1mY1nm4KJwXZH2UJ863iH7tzp1[0m heat=10635
+✅ ACTIVE: [1m[38;5;121m2YCwUZ68qRyJHRw1dg4mExakoKg6RFSYQ2WBod5ZAHnY[0m (score=[38;5;82m635[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m2YCwUZ68qRyJHRw1dg4mExakoKg6RFSYQ2WBod5ZAHnY[0m heat=10635
+✅ ACTIVE: [1m[38;5;121mCQ4XbeF7xvoy3DyddF6UhEpEmS7xhtq5KCnP4HrwBkkx[0m (score=[38;5;82m630[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mCQ4XbeF7xvoy3DyddF6UhEpEmS7xhtq5KCnP4HrwBkkx[0m heat=10630
+✅ ACTIVE: [1m[38;5;121m6D1hQ22C7oCUKKVuy91i8HTHnzSjsHCuNAcH9WH2pump[0m (score=[38;5;82m529[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m6D1hQ22C7oCUKKVuy91i8HTHnzSjsHCuNAcH9WH2pump[0m heat=10529
+✅ ACTIVE: [1m[38;5;121mG5bRLvVFv3AFnGrJvXgqzoyKcVsbYymvV96XFZVmJtKx[0m (score=[38;5;82m514[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mG5bRLvVFv3AFnGrJvXgqzoyKcVsbYymvV96XFZVmJtKx[0m heat=10514
+✅ ACTIVE: [1m[38;5;121m3kCXgBSP7FkW4kA5GcwPVgFDbpA7pBdVF1VRETKvpump[0m (score=[38;5;82m473[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m3kCXgBSP7FkW4kA5GcwPVgFDbpA7pBdVF1VRETKvpump[0m heat=10473
+✅ ACTIVE: [1m[38;5;121mAEtWwKRUfvgyMVDWLvNYgeTiVAC1YfRujmyssrG6pump[0m (score=[38;5;82m462[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mAEtWwKRUfvgyMVDWLvNYgeTiVAC1YfRujmyssrG6pump[0m heat=10462
+✅ ACTIVE: [1m[38;5;121mG4QRtYNRPyxdKwcAqqW3xSeEynDDxEyRvrDT9FJEpump[0m (score=[38;5;82m462[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mG4QRtYNRPyxdKwcAqqW3xSeEynDDxEyRvrDT9FJEpump[0m heat=10462
+✅ ACTIVE: [1m[38;5;121mFgr6ZejzV1nguSdkt3ugh5AdzucdHPaMsR2dCF2cpump[0m (score=[38;5;82m461[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mFgr6ZejzV1nguSdkt3ugh5AdzucdHPaMsR2dCF2cpump[0m heat=10461
+✅ ACTIVE: [1m[38;5;121mEk6YxgnyYSz2XXhGnzENUtCVRHjFaLBNQvfx6Ek6pump[0m (score=[38;5;82m459[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mEk6YxgnyYSz2XXhGnzENUtCVRHjFaLBNQvfx6Ek6pump[0m heat=10459
+✅ ACTIVE: [1m[38;5;121m3ePisYKwTc7iTc3jgYRtVRvrvyHgce3pbDiFkq9Epump[0m (score=[38;5;82m447[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m3ePisYKwTc7iTc3jgYRtVRvrvyHgce3pbDiFkq9Epump[0m heat=10447
+✅ ACTIVE: [1m[38;5;121mCASHx9KJUStyftLFWGvEVf59SGeG9sh5FfcnZMVPCASH[0m (score=[38;5;82m446[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mCASHx9KJUStyftLFWGvEVf59SGeG9sh5FfcnZMVPCASH[0m heat=10446
+DBG ACTIVE_ROTATION start=30 removed=9 end=21
+[38;5;226m🧮 scoring[0m [38;5;117mconsidered=5120[0m [2mcalled=0[0m skips: [38;5;208mfdv=2[0m [2mconc=0[0m [2mwallet=0[0m [2mcooldown=0[0m [2msigner=0[0m [2mother=28[0m [38;5;196mqueue_dropped=2[0m [38;5;82mactive=21[0m [38;5;196mqueue=214[0m
+DBG outcomes: now_ts=1773828460
+DBG outcomes: pending=0
+[38;5;208m🫀 hb[0m local=4:15:55 AM coins=2545 active=21 queue=214 calls=0 discovered=839
+[38;5;205m🟣 pumpportal[0m added=118 coins=2663
+DBG watchlist promote: added=1 pruned=1 (min_score=50 keep=10)
+DBG helius ingest: base=https://api.helius.xyz/v0/addresses api_key_len=36 wallets=10
+DBG per_coin ingest: base=https://api.helius.xyz/v0/addresses api_key_len=36 targets=21 active=21 queue=0 top_n_hot=0
+✅ ACTIVE: [1m[38;5;121m6A88CUpdtjCG4edpzjSVwAdgCZC6Z7eQ5BvMDhLCVnER[0m (score=[38;5;82m5705[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m6A88CUpdtjCG4edpzjSVwAdgCZC6Z7eQ5BvMDhLCVnER[0m heat=23705
+✅ ACTIVE: [1m[38;5;121mGfBLBbHbsAzdjF17jHRSEzfaDi99bxYqSH1BTKSjmPZu[0m (score=[38;5;82m5145[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mGfBLBbHbsAzdjF17jHRSEzfaDi99bxYqSH1BTKSjmPZu[0m heat=23145
+✅ ACTIVE: [1m[38;5;121m4SwEr9hNFf6WR7rNUoUYkrASG5ujW3SdzkFJKcKxqDJY[0m (score=[38;5;82m4695[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m4SwEr9hNFf6WR7rNUoUYkrASG5ujW3SdzkFJKcKxqDJY[0m heat=22695
+✅ ACTIVE: [1m[38;5;121m4A4Tb7fGz87M8DqZBTTf3bGV6wxXrzkabVEcsriooSEG[0m (score=[38;5;82m1890[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m4A4Tb7fGz87M8DqZBTTf3bGV6wxXrzkabVEcsriooSEG[0m heat=19890
+✅ ACTIVE: [1m[38;5;121mFZvhhggPbBn5j1CiSRUvy4iD9cENpWdWtAFF9KAupump[0m (score=[38;5;82m1015[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mFZvhhggPbBn5j1CiSRUvy4iD9cENpWdWtAFF9KAupump[0m heat=19015
+✅ ACTIVE: [1m[38;5;121mDTDkxXoBmmyyrGBpAZbegL8z9tBoEYi58rZFEChf6Xiu[0m (score=[38;5;82m725[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mDTDkxXoBmmyyrGBpAZbegL8z9tBoEYi58rZFEChf6Xiu[0m heat=18725
+✅ ACTIVE: [1m[38;5;121m2hAFnvmAcj7meNZYDxjK7hBdCWnDrfXt129CH1V8pump[0m (score=[38;5;82m671[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m2hAFnvmAcj7meNZYDxjK7hBdCWnDrfXt129CH1V8pump[0m heat=14671
+✅ ACTIVE: [1m[38;5;121mG5bRLvVFv3AFnGrJvXgqzoyKcVsbYymvV96XFZVmJtKx[0m (score=[38;5;82m645[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mG5bRLvVFv3AFnGrJvXgqzoyKcVsbYymvV96XFZVmJtKx[0m heat=14645
+✅ ACTIVE: [1m[38;5;121m6D1hQ22C7oCUKKVuy91i8HTHnzSjsHCuNAcH9WH2pump[0m (score=[38;5;82m574[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m6D1hQ22C7oCUKKVuy91i8HTHnzSjsHCuNAcH9WH2pump[0m heat=14574
+✅ ACTIVE: [1m[38;5;121mxsJa4TzmufBynZqmRLETFfkMBJDDug6CKxPkqrdpump[0m (score=[38;5;82m569[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mxsJa4TzmufBynZqmRLETFfkMBJDDug6CKxPkqrdpump[0m heat=14569
+✅ ACTIVE: [1m[38;5;121mCASHx9KJUStyftLFWGvEVf59SGeG9sh5FfcnZMVPCASH[0m (score=[38;5;82m446[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mCASHx9KJUStyftLFWGvEVf59SGeG9sh5FfcnZMVPCASH[0m heat=14446
+✅ ACTIVE: [1m[38;5;121m5qZod5srbAecRhNDzZDUrnfBdnsxrRfQ6peeDFy3pump[0m (score=[38;5;82m441[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m5qZod5srbAecRhNDzZDUrnfBdnsxrRfQ6peeDFy3pump[0m heat=12441
+✅ ACTIVE: [1m[38;5;121mBFo95HPnWd2qtqJPaw4doQFv1mRmerEKW3n2H9tgpump[0m (score=[38;5;82m645[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mBFo95HPnWd2qtqJPaw4doQFv1mRmerEKW3n2H9tgpump[0m heat=10645
+✅ ACTIVE: [1m[38;5;121mEZLAyGAm79u65dnTQWk86KAmK6yGwyr6vkJCFvJGX99x[0m (score=[38;5;82m645[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mEZLAyGAm79u65dnTQWk86KAmK6yGwyr6vkJCFvJGX99x[0m heat=10645
+✅ ACTIVE: [1m[38;5;121mfrPYyQ5C9cJtmiS7anZpE85eYXZvKCqMf2TdrdbfLso[0m (score=[38;5;82m645[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mfrPYyQ5C9cJtmiS7anZpE85eYXZvKCqMf2TdrdbfLso[0m heat=10645
+✅ ACTIVE: [1m[38;5;121m5HsdWkRJEKN26DroR5xMKqoh85dmkfPkAq19t171E7on[0m (score=[38;5;82m645[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m5HsdWkRJEKN26DroR5xMKqoh85dmkfPkAq19t171E7on[0m heat=10645
+✅ ACTIVE: [1m[38;5;121mGHKFvqjgssASm8yMgr1DgJVCf7geVhnGUfkTAn9PpRDF[0m (score=[38;5;82m635[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mGHKFvqjgssASm8yMgr1DgJVCf7geVhnGUfkTAn9PpRDF[0m heat=10635
+✅ ACTIVE: [1m[38;5;121mEUfRMccYw5E8Jv7NFmcpgKVFABqTr3QVputRQrbZpump[0m (score=[38;5;82m624[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mEUfRMccYw5E8Jv7NFmcpgKVFABqTr3QVputRQrbZpump[0m heat=10624
+✅ ACTIVE: [1m[38;5;121m3zomtMhRRsBpLZeJLS86fgueXE7xAhoN8dnymNh8pump[0m (score=[38;5;82m495[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m3zomtMhRRsBpLZeJLS86fgueXE7xAhoN8dnymNh8pump[0m heat=10495
+✅ ACTIVE: [1m[38;5;121m412zDygnwP9DzitnQVgRKUFFTDmrYScFch6P2k39pump[0m (score=[38;5;82m466[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m412zDygnwP9DzitnQVgRKUFFTDmrYScFch6P2k39pump[0m heat=10466
+✅ ACTIVE: [1m[38;5;121mC4yDhKwkikpVGCQWD9BT2SJyHAtRFFnKPDM9Nyshpump[0m (score=[38;5;82m465[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mC4yDhKwkikpVGCQWD9BT2SJyHAtRFFnKPDM9Nyshpump[0m heat=10465
+✅ ACTIVE: [1m[38;5;121mFgr6ZejzV1nguSdkt3ugh5AdzucdHPaMsR2dCF2cpump[0m (score=[38;5;82m457[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mFgr6ZejzV1nguSdkt3ugh5AdzucdHPaMsR2dCF2cpump[0m heat=10457
+✅ ACTIVE: [1m[38;5;121m5QmbJw7mM6tcCdXVy8ftc2bu8izded7Etc57TMA2pump[0m (score=[38;5;82m455[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m5QmbJw7mM6tcCdXVy8ftc2bu8izded7Etc57TMA2pump[0m heat=10455
+✅ ACTIVE: [1m[38;5;121mG4QRtYNRPyxdKwcAqqW3xSeEynDDxEyRvrDT9FJEpump[0m (score=[38;5;82m455[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121mG4QRtYNRPyxdKwcAqqW3xSeEynDDxEyRvrDT9FJEpump[0m heat=10455
+✅ ACTIVE: [1m[38;5;121m3ePisYKwTc7iTc3jgYRtVRvrvyHgce3pbDiFkq9Epump[0m (score=[38;5;82m449[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m3ePisYKwTc7iTc3jgYRtVRvrvyHgce3pbDiFkq9Epump[0m heat=10449
+✅ ACTIVE: [1m[38;5;121m9YcjRXF7Scp3S1CXtFZS74h1eMgoRyYCPyuRpiCMpump[0m (score=[38;5;82m448[0m)
+DBG HOT_PROMOTE mint=[1m[38;5;121m9YcjRXF7Scp3S1CXtFZS74h1eMgoRyYCPyuRpiCMpump[0m heat=10448
+DBG ACTIVE_ROTATION start=30 removed=14 end=16
+[38;5;226m🧮 scoring[0m [38;5;117mconsidered=5484[0m [2mcalled=0[0m skips: [38;5;208mfdv=2[0m [2mconc=0[0m [2mwallet=0[0m [2mcooldown=0[0m [2msigner=0[0m [2mother=28[0m [38;5;196mqueue_dropped=2[0m [38;5;82mactive=16[0m [38;5;196mqueue=217[0m
+DBG outcomes: now_ts=1773828955
+DBG outcomes: pending=0
+[38;5;208m🫀 hb[0m local=4:24:02 AM coins=2727 active=16 queue=217 calls=0 discovered=957
+[38;5;205m🟣 pumpportal[0m added=113 coins=2840
+DBG watchlist promote: added=1 pruned=1 (min_score=50 keep=10)
+DBG helius ingest: base=https://api.helius.xyz/v0/addresses api_key_len=36 wallets=10

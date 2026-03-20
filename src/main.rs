@@ -26,6 +26,7 @@ use crate::market::discovery::{merge_discovered, MarketDiscovery};
 use crate::types::{CallRecord, CoinState};
 
 use std::collections::{HashMap, HashSet, VecDeque};
+use std::sync::{atomic::{AtomicI64, Ordering}, Arc};
 use std::time::Duration;
 
 use tokio::sync::mpsc;
@@ -39,6 +40,20 @@ fn debug_enabled() -> bool {
 
 #[tokio::main]
 async fn main() {
+    // Global panic handler — log with backtrace then let process exit
+    // so the crash-restart wrapper can bring it back up.
+    std::panic::set_hook(Box::new(|info| {
+        let location = info.location()
+            .map(|l| format!("{}:{}", l.file(), l.line()))
+            .unwrap_or_else(|| "unknown".to_string());
+        let payload = info.payload()
+            .downcast_ref::<&str>()
+            .copied()
+            .unwrap_or("non-string panic");
+        eprintln!("PANIC at {}: {}", location, payload);
+        eprintln!("{:?}", std::backtrace::Backtrace::capture());
+    }));
+
     let cfg = load_config();
 
     // ONE shutdown token for the whole process (clone + pass everywhere)
@@ -100,7 +115,7 @@ async fn main() {
     // -------------------------
     // PumpPortal stream
     // -------------------------
-    let (pump_tx, mut pump_rx) = mpsc::channel::<String>(10_000);
+    let (pump_tx, mut pump_rx) = mpsc::channel::<pumpportal::types::PumpMint>(10_000);
     let cfg_pp = cfg.clone();
 
     // Governor (shared rate limits)
@@ -119,11 +134,121 @@ async fn main() {
         }
     });
 
+    // Watch channel: main loop pushes active list every tick; background tasks read it
+    let (active_tx, active_rx_per_coin) =
+        tokio::sync::watch::channel(Vec::<String>::new());
+
+    // Background task 1: wallet learning (every 3 minutes)
+    tokio::spawn({
+        let cfg = cfg.clone();
+        let gov = gov.clone();
+        let shutdown = shutdown.clone();
+        let db_path = cfg.sqlite_path.clone();
+        async move {
+            let mut iv = tokio::time::interval(Duration::from_secs(180));
+            iv.set_missed_tick_behavior(MissedTickBehavior::Skip);
+            loop {
+                tokio::select! {
+                    _ = shutdown.cancelled() => break,
+                    _ = iv.tick() => {
+                        if let Ok(mut bg_db) = crate::db::Db::open(&db_path) {
+                            let mut bg_coins: HashMap<String, CoinState> = HashMap::new();
+                            let wallets = build_wallet_learning_list(&cfg, &mut bg_db, 12);
+                            if !wallets.is_empty() {
+                                let _ = crate::helius::ingest::ingest_wallet_activity(
+                                    &cfg, &mut bg_db, &mut bg_coins,
+                                    &wallets, gov.clone(), &shutdown,
+                                ).await;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    // Background task 2: per-coin ingest (every 45 seconds)
+    tokio::spawn({
+        let cfg = cfg.clone();
+        let gov = gov.clone();
+        let shutdown = shutdown.clone();
+        let db_path = cfg.sqlite_path.clone();
+        let mut active_rx = active_rx_per_coin;
+        async move {
+            let mut iv = tokio::time::interval(Duration::from_secs(45));
+            iv.set_missed_tick_behavior(MissedTickBehavior::Skip);
+            loop {
+                tokio::select! {
+                    _ = shutdown.cancelled() => break,
+                    _ = iv.tick() => {
+                        let top10: Vec<String> = active_rx.borrow().clone()
+                            .into_iter().take(10).collect();
+                        if top10.is_empty() { continue; }
+                        if let Ok(mut bg_db) = crate::db::Db::open(&db_path) {
+                            let mut bg_coins: HashMap<String, CoinState> = HashMap::new();
+                            let _ = crate::helius::per_coin::ingest_pairs_for_active(
+                                &cfg, &mut bg_db, &mut bg_coins, &top10, gov.clone(),
+                            ).await;
+                        }
+                    }
+                }
+            }
+        }
+    });
+
     println!(
         "{}🚀 Solana Meme Sniper started{} (Ctrl+C to stop)",
         fmt::NEON_GREEN,
         fmt::RESET
     );
+    println!("\x1b[35m● INTERFECTOR ONLINE — watching for signals...\x1b[0m");
+
+    // Animator task — shows live status on the terminal status line
+    let last_tick_ts: Arc<AtomicI64> = Arc::new(AtomicI64::new(0));
+    {
+        let shutdown = shutdown.clone();
+        let last_tick = last_tick_ts.clone();
+        tokio::spawn(async move {
+            let hunting_frames = [
+                "🩷 INTERFECTOR HUNTING",
+                "🩷🩷 INTERFECTOR HUNTING",
+                "🩷🩷🩷 INTERFECTOR HUNTING",
+                "💗 INTERFECTOR HUNTING",
+                "💓 INTERFECTOR HUNTING",
+                "💕 INTERFECTOR HUNTING",
+            ];
+            let mut i = 0usize;
+            loop {
+                if shutdown.is_cancelled() {
+                    print!("\r\x1b[K");
+                    let _ = std::io::Write::flush(&mut std::io::stdout());
+                    break;
+                }
+
+                let last = last_tick.load(Ordering::Relaxed);
+                let now = chrono::Utc::now().timestamp();
+                let secs = now - last;
+
+                if last == 0 {
+                    print!("\r\x1b[35m🌊 INTERFECTOR INITIALIZING...\x1b[0m  ");
+                } else if secs > 200 {
+                    // Dead — 3 full minutes with no tick
+                    print!("\r\x1b[31m💀 INTERFECTOR DEAD — {}s — run ./slime\x1b[0m  ", secs);
+                } else if secs > 15 {
+                    // Helius is slow but alive — show seconds so you know progress
+                    print!("\r\x1b[35m🩷 INTERFECTOR HUNTING — helius {}s\x1b[0m  ", secs);
+                } else {
+                    // Healthy
+                    let frame = hunting_frames[i % hunting_frames.len()];
+                    print!("\r\x1b[35m{}\x1b[0m  ", frame);
+                }
+
+                let _ = std::io::Write::flush(&mut std::io::stdout());
+                i += 1;
+                tokio::time::sleep(std::time::Duration::from_millis(400)).await;
+            }
+        });
+    }
 
     // =========================
     // MAIN LOOP (interval-driven)
@@ -154,11 +279,12 @@ async fn main() {
                 // ------------------------------------------------------------
                 let now: u64 = crate::time::now();
                 let now_ts: i64 = now as i64;
+                last_tick_ts.store(now_ts, Ordering::Relaxed);
 
                 // ------------------------------------------------------------
                 // 1) Drain PumpPortal mints (fast path)
                 // ------------------------------------------------------------
-                drain_pump_mints(&mut pump_rx, &mut coins, &mut discovered, &shutdown);
+                drain_pump_mints(&mut pump_rx, &mut coins, &mut discovered, &mut market, &shutdown);
 
                 // ------------------------------------------------------------
                 // 2) Periodic discovery (slow path)
@@ -231,63 +357,6 @@ async fn main() {
                 }
 
                 // ------------------------------------------------------------
-                // 6) Wallet-learning ingest (top wallets)
-                // ------------------------------------------------------------
-                if !shutdown.is_cancelled() {
-                    let wallets = build_wallet_learning_list(&cfg, &mut db, 25);
-                    if !wallets.is_empty() {
-                        if let Err(e) = crate::helius::ingest::ingest_wallet_activity(
-                            &cfg, &mut db, &mut coins, &wallets, gov.clone(), &shutdown
-                        ).await {
-                            if !shutdown.is_cancelled() {
-                                eprintln!("{}DBG wallet-learning ingest ERR={:?}{}", fmt::RED, e, fmt::RESET);
-                            }
-                        }
-                    }
-
-                    if shutdown.is_cancelled() {
-                        break 'main;
-                    }
-                }
-
-                // ------------------------------------------------------------
-                // 7) Pair-tracking ingest (active + queue)
-                // ------------------------------------------------------------
-                if !shutdown.is_cancelled() {
-                    let tracked = build_tracked_pair_addresses(&coins, &active, &queue, 150);
-                    if !tracked.is_empty() {
-                        let discovered_mints = crate::scoring::onchain::fetch_onchain_events(
-                            &cfg, &mut db, &mut coins, &tracked, gov.clone(), &shutdown
-                        ).await;
-
-                        if shutdown.is_cancelled() {
-                            break 'main;
-                        }
-
-                        for m in discovered_mints {
-                            coins.entry(m).or_insert_with(CoinState::new);
-                        }
-                    }
-                }
-
-                // ------------------------------------------------------------
-                // 8) Per-coin ingest (active)
-                // ------------------------------------------------------------
-                if !shutdown.is_cancelled() && !active.is_empty() {
-                    if let Err(e) = crate::helius::per_coin::ingest_pairs_for_active(
-                        &cfg, &mut db, &mut coins, &active, gov.clone()
-                    ).await {
-                        if !shutdown.is_cancelled() {
-                            eprintln!("{}DBG per_coin ingest ERR={:?}{}", fmt::RED, e, fmt::RESET);
-                        }
-                    }
-
-                    if shutdown.is_cancelled() {
-                        break 'main;
-                    }
-                }
-
-                // ------------------------------------------------------------
                 // 9) Wallet reputation update
                 // ------------------------------------------------------------
                 if !shutdown.is_cancelled() {
@@ -314,6 +383,9 @@ async fn main() {
                         &tg_tx,
                     );
 
+                    // Share active list with background ingest tasks
+                    active_tx.send(active.clone()).ok();
+
                     while let Ok(msg) = tg_rx.try_recv() {
                         let token = cfg.telegram_bot_token.clone();
                         let chat_id = cfg.telegram_chat_id.clone();
@@ -333,12 +405,14 @@ async fn main() {
                                     .any(|p| p.mint == call.mint && !p.closed);
 
                                 if !already_open {
-                                    let key = cfg.frontrun_api_key.clone();
+                                    let pub_key = cfg.pumpportal_public_key.clone();
+                                    let priv_key = cfg.pumpportal_private_key.clone();
                                     let mint = call.mint.clone();
                                     let sol = cfg.tars_buy_sol;
+                                    let rpc = cfg.helius_rpc_url.clone();
 
                                     tokio::spawn(async move {
-                                        match crate::tars::buy(&key, &mint, sol).await {
+                                        match crate::tars::buy(&pub_key, &priv_key, &mint, sol, &rpc).await {
                                             Ok(sig) => println!("🤖 TARS BUY {} {:.2} SOL sig={}",
                                                 &mint[..8], sol, &sig[..8]),
                                             Err(e) => eprintln!("🤖 TARS BUY ERR={:?}", e),
@@ -375,44 +449,59 @@ async fn main() {
                                     cfg.tars_tp1_mult,
                                     cfg.tars_tp2_mult,
                                     cfg.tars_sl_pct,
+                                    now_ts,
                                 );
 
                                 match signal {
                                     Some(crate::tars::ExitSignal::TakeProfit1) => {
-                                        println!("🤖 TARS TP1: {} at ${:.0} ({:.2}x)",
-                                            &pos.mint[..8], fdv,
-                                            fdv / pos.entry_fdv);
-                                        let key = cfg.frontrun_api_key.clone();
+                                        println!("🤖 TARS TP1 {:.2}x — selling 50%", fdv / pos.entry_fdv);
+                                        let pub_key = cfg.pumpportal_public_key.clone();
+                                        let priv_key = cfg.pumpportal_private_key.clone();
                                         let mint = pos.mint.clone();
+                                        let rpc = cfg.helius_rpc_url.clone();
                                         tokio::spawn(async move {
-                                            match crate::tars::sell_percent(&key, &mint, 50.0).await {
+                                            match crate::tars::sell_percent(&pub_key, &priv_key, &mint, 50.0, &rpc).await {
                                                 Ok(sig) => println!("🤖 TARS TP1 sold 50% sig={}", &sig[..8]),
                                                 Err(e) => eprintln!("🤖 TARS TP1 ERR={:?}", e),
                                             }
                                         });
                                     }
                                     Some(crate::tars::ExitSignal::TakeProfit2) => {
-                                        println!("🤖 TARS TP2: {} at ${:.0} ({:.2}x)",
-                                            &pos.mint[..8], fdv,
-                                            fdv / pos.entry_fdv);
-                                        let key = cfg.frontrun_api_key.clone();
+                                        println!("🤖 TARS TP2 {:.2}x — selling 30%", fdv / pos.entry_fdv);
+                                        let pub_key = cfg.pumpportal_public_key.clone();
+                                        let priv_key = cfg.pumpportal_private_key.clone();
                                         let mint = pos.mint.clone();
+                                        let rpc = cfg.helius_rpc_url.clone();
                                         tokio::spawn(async move {
-                                            match crate::tars::sell_percent(&key, &mint, 50.0).await {
-                                                Ok(sig) => println!("🤖 TARS TP2 sold 25% sig={}", &sig[..8]),
+                                            match crate::tars::sell_percent(&pub_key, &priv_key, &mint, 30.0, &rpc).await {
+                                                Ok(sig) => println!("🤖 TARS TP2 sold 30% sig={}", &sig[..8]),
                                                 Err(e) => eprintln!("🤖 TARS TP2 ERR={:?}", e),
                                             }
                                         });
                                     }
-                                    Some(crate::tars::ExitSignal::StopLoss) => {
-                                        println!("🛑 TARS SL: {} at ${:.0} ({:.2}x)",
-                                            &pos.mint[..8], fdv,
-                                            fdv / pos.entry_fdv);
-                                        let key = cfg.frontrun_api_key.clone();
+                                    Some(crate::tars::ExitSignal::TakeProfit3) => {
+                                        println!("🤖 TARS TP3 — selling 15%, keeping 5% moon bag 🌙");
+                                        let pub_key = cfg.pumpportal_public_key.clone();
+                                        let priv_key = cfg.pumpportal_private_key.clone();
                                         let mint = pos.mint.clone();
+                                        let rpc = cfg.helius_rpc_url.clone();
                                         tokio::spawn(async move {
-                                            match crate::tars::sell_percent(&key, &mint, 100.0).await {
-                                                Ok(sig) => println!("🛑 TARS SL sold 100% sig={}", &sig[..8]),
+                                            match crate::tars::sell_percent(&pub_key, &priv_key, &mint, 15.0, &rpc).await {
+                                                Ok(sig) => println!("🤖 TARS TP3 sold 15% sig={}", &sig[..8]),
+                                                Err(e) => eprintln!("🤖 TARS TP3 ERR={:?}", e),
+                                            }
+                                        });
+                                    }
+                                    Some(crate::tars::ExitSignal::StopLoss) => {
+                                        println!("🛑 TARS SL {:.2}x — selling 95%, keeping 5% moon bag 🌙",
+                                            fdv / pos.entry_fdv);
+                                        let pub_key = cfg.pumpportal_public_key.clone();
+                                        let priv_key = cfg.pumpportal_private_key.clone();
+                                        let mint = pos.mint.clone();
+                                        let rpc = cfg.helius_rpc_url.clone();
+                                        tokio::spawn(async move {
+                                            match crate::tars::sell_percent(&pub_key, &priv_key, &mint, 95.0, &rpc).await {
+                                                Ok(sig) => println!("🛑 TARS SL sold 95% sig={}", &sig[..8]),
                                                 Err(e) => eprintln!("🛑 TARS SL ERR={:?}", e),
                                             }
                                         });
@@ -450,8 +539,16 @@ async fn main() {
                 if !shutdown.is_cancelled() {
                     if last_heartbeat_ts == 0 || (now_ts - last_heartbeat_ts) >= heartbeat_every {
                         last_heartbeat_ts = now_ts;
+
+                        // Pink pulsing dots — cycles through 1-4 dots
+                        let dot_count = ((now_ts % 4) + 1) as usize;
+                        let dots: String = "●".repeat(dot_count);
+                        let spaces: String = "○".repeat(4 - dot_count);
+
                         println!(
-                            "{}🫀 hb{} local={} coins={} active={} queue={} calls={} discovered={}",
+                            "\x1b[35m{}{}\x1b[0m {}🫀 hb{} local={} coins={} active={} queue={} calls={} discovered={}",
+                            dots,
+                            spaces,
                             fmt::ORANGE,
                             fmt::RESET,
                             chrono::Local::now().format("%-I:%M:%S %p"),
@@ -479,9 +576,10 @@ async fn main() {
 // ============================================================
 
 fn drain_pump_mints(
-    pump_rx: &mut mpsc::Receiver<String>,
+    pump_rx: &mut mpsc::Receiver<pumpportal::types::PumpMint>,
     coins: &mut HashMap<String, CoinState>,
     discovered: &mut VecDeque<String>,
+    market: &mut MarketCache,
     shutdown: &CancellationToken,
 ) {
     if shutdown.is_cancelled() {
@@ -490,9 +588,18 @@ fn drain_pump_mints(
 
     let mut pump_added = 0usize;
 
-    while let Ok(mint) = pump_rx.try_recv() {
+    while let Ok(pm) = pump_rx.try_recv() {
         if shutdown.is_cancelled() {
             return;
+        }
+
+        let mint = pm.mint.clone();
+
+        // Inject initial FDV from pump data before first DexScreener poll
+        // marketCapSol * SOL_PRICE_USD ≈ FDV. Use 130.0 as a rough SOL price.
+        if let Some(mc_sol) = pm.market_cap_sol {
+            let fdv_usd = mc_sol * 89.0;
+            market.inject_pump_fdv(&mint, fdv_usd);
         }
 
         if !coins.contains_key(&mint) {
@@ -638,19 +745,14 @@ fn snapshot_candidates(
         }
 
         let ms = market.map.get(&mint);
-
         let fdv = ms.and_then(|x| x.fdv);
         let tx5 = ms.and_then(|x| x.tx_5m);
-
         let score = coins.get(&mint).map(|s| s.score).unwrap_or(0);
-        let signers = coins
-            .get(&mint)
-            .map(|s| s.unique_signers_5m as u64)
-            .unwrap_or(0);
-        // first_seen: fall back to 0 if coin was cleaned up from HashMap
+        let mem_signers = coins.get(&mint).map(|s| s.unique_signers_5m as u64).unwrap_or(0);
+        let db_signers = db.signers_5m(now_ts, mint.as_str()).unwrap_or(0);
+        let signers = mem_signers.max(db_signers);
         let first_seen = coins.get(&mint).map(|s| s.first_seen).unwrap_or(0);
 
-        // If we know absolutely nothing, skip
         if fdv.unwrap_or(0.0) <= 0.0 && tx5.unwrap_or(0) == 0 && signers == 0 {
             continue;
         }
@@ -659,18 +761,8 @@ fn snapshot_candidates(
         let is_active = active_set.contains(mint.as_str());
 
         let _ = db.insert_snapshot(
-            now_ts,
-            mint.as_str(),
-            fdv,
-            tx5,
-            score,
-            signers,
-            ev,
-            first_seen,
-            is_active,
-            false,
+            now_ts, mint.as_str(), fdv, tx5, score, signers, ev, first_seen, is_active, false,
         );
-
         wrote += 1;
     }
 
@@ -733,15 +825,19 @@ fn build_wallet_learning_list(
     db: &mut crate::db::Db,
     limit: usize,
 ) -> Vec<String> {
-    let mut wallets = db.get_watchlist_wallets(limit);
-    if wallets.is_empty() {
-        wallets = cfg
-            .helius_wallets
-            .split(',')
-            .map(|s| s.trim())
-            .filter(|s| !s.is_empty())
-            .map(|s| s.to_string())
-            .collect();
+    // Prefer .env wallets first — these are your elite hand-picked wallets
+    let env_wallets: Vec<String> = cfg
+        .helius_wallets
+        .split(',')
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_string())
+        .collect();
+
+    if !env_wallets.is_empty() {
+        return env_wallets;
     }
-    wallets
+
+    // Fall back to DB watchlist if no .env wallets
+    db.get_watchlist_wallets(limit)
 }

@@ -147,14 +147,24 @@ async fn ingest_pairs_for_targets_inner(
             cfg.fetch_limit
         );
 
-        let resp = match client.get(&url).send().await {
-            Ok(r) => r,
-            Err(e) => {
+        let resp = match tokio::time::timeout(
+            Duration::from_secs(8),
+            client.get(&url).send(),
+        ).await {
+            Ok(Ok(r)) => r,
+            Ok(Err(e)) => {
                 eprintln!(
                     "DBG per_coin ingest: request error mint={} pair={} err={}",
                     mint, pair, e
                 );
-                // small backoff
+                tokio::time::sleep(Duration::from_millis(80)).await;
+                continue;
+            }
+            Err(_) => {
+                eprintln!(
+                    "DBG per_coin ingest: timeout mint={} pair={}",
+                    mint, pair
+                );
                 tokio::time::sleep(Duration::from_millis(80)).await;
                 continue;
             }
