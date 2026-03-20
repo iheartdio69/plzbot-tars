@@ -5,8 +5,7 @@ mod helius;
 mod io;
 mod market;
 mod onchain;
-mod printing;
-mod resolver;
+mod reputation;
 mod scoring;
 mod time;
 mod types;
@@ -22,6 +21,9 @@ async fn main() {
         "CFG snapshot={}s window={}s min_call_fdv=${}",
         cfg.snapshot_interval_secs, cfg.window_secs, cfg.min_call_fdv_usd
     );
+
+    // Load wallet reputation history before scanning
+    reputation::load_reputation();
 
     app::run(cfg).await;
 }

@@ -1,5 +1,6 @@
 use crate::config::Config;
 use crate::market::cache::{market_trend, MarketCache};
+use crate::reputation::{WALLET_REPUTATION, RUG_WALLETS};
 use crate::scoring::shadow::{shadow_should_add, shadow_touch, ShadowMap};
 use crate::scoring::window::{
     prune_window, runner_score, window_stats_for, window_wallets, window_whales,
@@ -9,15 +10,8 @@ use crate::fmt::fmt_f64_0_commas;
 use crate::types::{CallRecord, CoinState};
 
 use colored::*;
-use lazy_static::lazy_static;
-use std::collections::{HashMap, HashSet, VecDeque};
-use std::sync::Mutex;
+use std::collections::{HashMap, VecDeque};
 use std::time::Instant;
-
-lazy_static! {
-    static ref WALLET_REPUTATION: Mutex<HashMap<String, f64>> = Mutex::new(HashMap::new());
-    static ref RUG_WALLETS: Mutex<HashSet<String>> = Mutex::new(HashSet::new());
-}
 
 fn is_bonk_like(s: &str) -> bool {
     let x = s.to_lowercase();

@@ -6,6 +6,7 @@ use crate::scoring::engine::score_and_manage;
 use crate::scoring::shadow::ShadowMap;
 use crate::types::{CallRecord, CoinState};
 use std::collections::{HashMap, VecDeque};
+use std::fs;
 use std::time::Duration;
 
 pub async fn run(cfg: Config) {
@@ -54,6 +55,21 @@ pub async fn run(cfg: Config) {
             &mut calls,
             &market,
             &mut shadow,
+        );
+
+        // Write state for the UI dashboard
+        let _ = fs::create_dir_all("data");
+        let state = serde_json::json!({
+            "coins": coins.len(),
+            "active": active,
+            "calls_total": calls.len(),
+            "tars_enabled": false,
+            "ts": crate::time::now_ts(),
+        });
+        let _ = fs::write("data/state.json", state.to_string());
+        let _ = fs::write(
+            "data/calls.json",
+            serde_json::to_string_pretty(&calls).unwrap_or_else(|_| "[]".into()),
         );
 
         tokio::time::sleep(Duration::from_secs(cfg.main_loop_sleep)).await;
