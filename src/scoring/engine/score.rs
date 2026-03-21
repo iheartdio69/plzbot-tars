@@ -123,6 +123,13 @@ pub fn score_all_coins(
             }
         }
 
+        // Cache sol_flow_5m from event buffer (no DB query needed)
+        let cutoff_sol = now.saturating_sub(300);
+        st.sol_flow_5m = st.events.iter()
+            .filter(|e| e.ts >= cutoff_sol)
+            .map(|e| e.sol)
+            .sum::<f64>();
+
         // Cache wallet_delta ONCE per tick (call loop reads it)
         let early_fdv = fdv < 25_000.0;
         st.wallet_delta = if early_fdv
@@ -249,6 +256,32 @@ pub fn score_all_coins(
         } else {
             st.whale_entry = false;
             st.whale_entry_score = 0;
+        }
+
+        // SOL flow bonus (real committed SOL in last 5m from event buffer)
+        let sol_flow = st.sol_flow_5m;
+        if sol_flow >= 5.0 {
+            score += 30;
+        } else if sol_flow >= 2.0 {
+            score += 20;
+        } else if sol_flow >= 0.5 {
+            score += 10;
+        }
+
+        // Launch SOL bonus (bonding curve depth at launch = early conviction signal)
+        if let Some(launch_sol) = st.launch_sol {
+            if launch_sol >= 10.0 {
+                score += 20;
+            } else if launch_sol >= 3.0 {
+                score += 10;
+            }
+        }
+
+        // Creator rug penalty — hard kill score if deployer is flagged
+        if st.creator_is_rug {
+            score = -999;
+            st.low_score_streak = 255;
+            continue;
         }
 
         // Volume spike bonus

@@ -116,6 +116,7 @@ async fn main() {
     // PumpPortal stream
     // -------------------------
     let (pump_tx, mut pump_rx) = mpsc::channel::<pumpportal::types::PumpMint>(10_000);
+    let (trade_tx, mut trade_rx) = mpsc::channel::<pumpportal::types::PumpTrade>(50_000);
     let cfg_pp = cfg.clone();
 
     // Governor (shared rate limits)
@@ -130,7 +131,7 @@ async fn main() {
     tokio::spawn({
         let gov_pp = gov.clone();
         async move {
-            pumpportal::client::run(cfg_pp, pump_tx, gov_pp).await;
+            pumpportal::client::run(cfg_pp, pump_tx, trade_tx, gov_pp).await;
         }
     });
 
@@ -316,7 +317,13 @@ async fn main() {
                 // ------------------------------------------------------------
                 // 1) Drain PumpPortal mints (fast path)
                 // ------------------------------------------------------------
-                drain_pump_mints(&mut pump_rx, &mut coins, &mut discovered, &mut market, &shutdown);
+                drain_pump_mints(&mut pump_rx, &mut coins, &mut discovered, &mut market, &shutdown, &mut db);
+
+                // ------------------------------------------------------------
+                // 1b) Drain PumpPortal trades → real-time wallet events
+                //     This replaces Helius for pre-graduation coins
+                // ------------------------------------------------------------
+                drain_pump_trades(&mut trade_rx, &mut coins, now, &shutdown);
 
                 // ------------------------------------------------------------
                 // 2) Periodic discovery (slow path)
@@ -615,6 +622,7 @@ fn drain_pump_mints(
     discovered: &mut VecDeque<String>,
     market: &mut MarketCache,
     shutdown: &CancellationToken,
+    db: &mut crate::db::Db,
 ) {
     if shutdown.is_cancelled() {
         return;
@@ -637,12 +645,38 @@ fn drain_pump_mints(
         }
 
         if !coins.contains_key(&mint) {
-            coins.entry(mint.clone()).or_insert_with(CoinState::new);
+            let mut st = CoinState::new();
+
+            // Store launch SOL (bonding curve depth = real committed SOL)
+            st.launch_sol = pm.v_sol_in_bonding_curve;
+
+            // Store creator wallet + flag if it's a known rugger
+            if let Some(ref creator) = pm.creator {
+                let is_rug = db.wallet_score(creator).unwrap_or(0) <= -50;
+                st.creator_wallet = Some(creator.clone());
+                st.creator_is_rug = is_rug;
+                if is_rug {
+                    eprintln!(
+                        "🚩 RUG CREATOR detected at launch: mint={} creator={}",
+                        &mint[..8.min(mint.len())],
+                        &creator[..8.min(creator.len())]
+                    );
+                }
+            }
+
+            coins.insert(mint.clone(), st);
             discovered.push_back(mint);
             pump_added += 1;
 
             while discovered.len() > 20_000 {
                 discovered.pop_front();
+            }
+        } else {
+            // Coin already known — update launch_sol if we now have it
+            if let Some(st) = coins.get_mut(&mint) {
+                if st.launch_sol.is_none() {
+                    st.launch_sol = pm.v_sol_in_bonding_curve;
+                }
             }
         }
     }
@@ -852,6 +886,52 @@ fn maybe_promote_watchlist(db: &mut crate::db::Db, now_ts: i64, last_ts: &mut i6
     }
 
     *last_ts = now_ts;
+}
+
+fn drain_pump_trades(
+    trade_rx: &mut mpsc::Receiver<pumpportal::types::PumpTrade>,
+    coins: &mut HashMap<String, CoinState>,
+    now: u64,
+    shutdown: &CancellationToken,
+) {
+    if shutdown.is_cancelled() { return; }
+
+    let mut ingested = 0usize;
+
+    while let Ok(trade) = trade_rx.try_recv() {
+        if shutdown.is_cancelled() { return; }
+
+        // Only track coins we're already watching
+        let Some(st) = coins.get_mut(&trade.mint) else { continue };
+
+        // Build real-time Event from trade
+        let tier = crate::types::WhaleTier::None; // tier enrichment happens in helius, not here
+
+        let event = crate::types::Event {
+            wallet: trade.trader.clone(),
+            ts: trade.ts,
+            sol: if trade.is_buy { trade.sol_amount } else { -trade.sol_amount },
+            tier,
+        };
+
+        st.events.push(event);
+        st.last_activity_ts = now;
+
+        // Update market cap if available
+        // (gives us a free FDV estimate between DexScreener polls)
+        if let Some(mc_sol) = trade.market_cap_sol {
+            // Will be picked up by scoring on next tick
+            let _ = mc_sol; // market cache updated separately
+        }
+
+        ingested += 1;
+    }
+
+    if ingested > 0 {
+        if std::env::var("DEBUG").ok().as_deref() == Some("1") {
+            eprintln!("DBG pump_trades ingested={}", ingested);
+        }
+    }
 }
 
 fn build_wallet_learning_list(

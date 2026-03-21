@@ -172,7 +172,9 @@ pub fn process_calls(
     let cooldown_secs: i64 = 15 * 60;
 
     // Startup warmup (per-mint, based on age)
-    let momentum_warmup_sec: u64 = 120;
+    // Extended to 240s — gives fresh coins time to build snapshot history
+    // before momentum gate fires. Prevents stalling brand-new good coins.
+    let momentum_warmup_sec: u64 = 240;
 
     // Events-conviction gate (pre-call)
     let ev_min_for_conviction: i64 = 60;
@@ -256,6 +258,15 @@ pub fn process_calls(
         let in_momentum_warmup: bool = true_age_sec < momentum_warmup_sec;
 
         // 0) Quick excludes
+
+        // Instant kill: creator wallet is a known rugger (caught at discovery time)
+        if coins.get(mint).map(|s| s.creator_is_rug).unwrap_or(false) {
+            counters.skip_other += 1;
+            counters.skipped_threshold += 1;
+            remove_from_active.insert(mint.clone());
+            continue;
+        }
+
         if is_bonk_like_mint(mint) {
             skip_and_maybe_demote(
                 "BONK_LIKE",
@@ -338,16 +349,47 @@ pub fn process_calls(
                 && signers >= 5       // some real holders
         };
 
-        // Combined bypass
-        let strong_momentum: bool = early_snipe || conviction_momentum;
-
-        let sol_flow_5m = db.mint_sol_flow_5m(now_ts, mint).unwrap_or(0.0);
+        // Use cached sol_flow_5m from CoinState (computed from event buffer each tick)
+        // Fall back to DB only if event buffer is empty (e.g. first tick)
+        let sol_flow_5m = {
+            let mem_flow = coins.get(mint).map(|s| s.sol_flow_5m).unwrap_or(0.0);
+            if mem_flow > 0.0 { mem_flow } else { db.mint_sol_flow_5m(now_ts, mint).unwrap_or(0.0) }
+        };
         let real_sol_flow: bool = sol_flow_5m >= 0.05;
 
         // New coin bypass — recently discovered with rising FDV, give it a chance
         let new_coin_rising: bool = true_age_sec < 600
             && fdv >= cfg.min_call_fdv_usd
             && coins.get(mint).map(|s| s.score).unwrap_or(0) >= 50;
+
+        // HYPERSPEED bypass — violent tx velocity + rapid FDV growth on small cap
+        // Designed to catch coins like HUGH: tx_5m=139 at $16K, 224% growth in 92s
+        // These are pre-graduation rockets — don't require Helius signers
+        let hyperspeed: bool = {
+            let high_tx = tx5 >= 80;
+            let small_cap = fdv >= cfg.min_call_fdv_usd && fdv < 50_000.0;
+            let fast_fdv = if let Some(fdv_60s_ago) = fdv_approx_60s_ago(db, now_ts, mint.as_str()) {
+                fdv > 0.0 && fdv_60s_ago > 0.0 && ((fdv / fdv_60s_ago) - 1.0) >= 0.30 // 30%+ in 60s
+            } else {
+                false
+            };
+            // Also accept pump trade stream signers as valid (real-time wallet data)
+            let pump_signers = coins.get(mint).map(|s| s.unique_signers_5m).unwrap_or(0);
+            high_tx && small_cap && (fast_fdv || pump_signers >= 5)
+        };
+
+        if hyperspeed {
+            if std::env::var("DEBUG").ok().as_deref() == Some("1") {
+                eprintln!(
+                    "DBG HYPERSPEED mint={} tx5={} fdv={:.0} signers={}",
+                    crate::fmt::mint(mint), tx5, fdv,
+                    coins.get(mint).map(|s| s.unique_signers_5m).unwrap_or(0)
+                );
+            }
+        }
+
+        // Combined bypass
+        let strong_momentum: bool = early_snipe || conviction_momentum || hyperspeed;
 
         // Snapshot heartbeat (don’t swallow errors)
         {
@@ -1238,6 +1280,8 @@ pub fn process_calls(
         // ----- primary lane tag (ALWAYS ONE) -----
         let lane_tag: &str = if coins.get(mint).map(|s| s.whale_entry).unwrap_or(false) {
             "WHALE"
+        } else if hyperspeed {
+            "HYPERSPEED"
         } else if early_snipe {
             "SNIPE"
         } else if conviction_momentum {
@@ -1289,6 +1333,7 @@ pub fn process_calls(
         let colored_line = match lane_tag {
             "GAMBOL" => crate::fmt::red(&line),
             "WHALE" => crate::fmt::green(&line),
+            "HYPERSPEED" => crate::fmt::cyan(&line),
             "SNIPE" => crate::fmt::cyan(&line),
             "CONVICTION" => crate::fmt::green(&line),
             "SPIKE" => crate::fmt::green(&line),
@@ -1313,9 +1358,20 @@ pub fn process_calls(
             String::new()
         };
 
+        let launch_sol_str = coins.get(mint)
+            .and_then(|s| s.launch_sol)
+            .map(|v| format!(" | Launch: {:.2} SOL", v))
+            .unwrap_or_default();
+
+        let sol_flow_str = if sol_flow_5m >= 0.01 {
+            format!(" | SOL/5m: {:.2}", sol_flow_5m)
+        } else {
+            String::new()
+        };
+
         let tg_msg = format!(
-            "🎯 <b>INTERFECTOR</b>\nMint: <code>{}</code>\nLane: {}\nFDV: ${:.0}\nScore: {} | TX: {} | Signers: {}{}\n🔗 https://axiom.trade/t/{}",
-            mint, lane_tag, fdv, effective_score, tx5, signers, whale_info, mint
+            "🎯 <b>INTERFECTOR</b>\nMint: <code>{}</code>\nLane: {}\nFDV: ${:.0}\nScore: {} | TX: {} | Signers: {}{}{}{}\n🔗 https://axiom.trade/t/{}",
+            mint, lane_tag, fdv, effective_score, tx5, signers, whale_info, launch_sol_str, sol_flow_str, mint
         );
         let _ = tg_tx.try_send(tg_msg);
 

@@ -71,6 +71,18 @@ pub struct CoinState {
     pub wallet_delta: i32,
 
     // -------------------------
+    // pump.fun launch data (from PumpPortal, free at discovery)
+    // -------------------------
+    pub launch_sol: Option<f64>,       // vSolInBondingCurve at first seen
+    pub creator_wallet: Option<String>, // deployer wallet — checked vs rug DB
+    pub creator_is_rug: bool,           // true = creator flagged in wallets table
+
+    // -------------------------
+    // sol flow (from events)
+    // -------------------------
+    pub sol_flow_5m: f64,              // cached SOL flow last 5m from event buffer
+
+    // -------------------------
     // active clog control (demotion logic)
     // -------------------------
     pub demote_streak: u32,
@@ -109,6 +121,11 @@ impl CoinState {
             prev_tx_5m: 0,
             prev_tx_ts: 0,
             wallet_delta: 0,
+
+            launch_sol: None,
+            creator_wallet: None,
+            creator_is_rug: false,
+            sol_flow_5m: 0.0,
 
             demote_streak: 0,
             last_demote_ts: 0,

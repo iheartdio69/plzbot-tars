@@ -1,20 +1,21 @@
 // src/pumpportal/client.rs
 use crate::config::Config;
 use crate::governor::Governor;
-use crate::pumpportal::types::PumpMint;
+use crate::pumpportal::types::{PumpMint, PumpTrade};
 use futures_util::{SinkExt, StreamExt};
 use serde_json::json;
 use std::sync::Arc;
 use tokio::sync::mpsc;
 use tokio_tungstenite::tungstenite::Message;
 
-pub async fn run(cfg: Config, tx: mpsc::Sender<PumpMint>, gov: Arc<Governor>) {
-    // PumpPortal websocket traffic is NOT Helius credits, but we keep `gov`
-    // in the signature so the whole app wiring stays consistent.
+pub async fn run(
+    cfg: Config,
+    tx: mpsc::Sender<PumpMint>,
+    trade_tx: mpsc::Sender<PumpTrade>,
+    gov: Arc<Governor>,
+) {
     let _ = gov;
 
-    // rustls 0.23 requires selecting a crypto provider explicitly
-    // (safe to call multiple times; we just ignore failure)
     if let Err(e) = rustls::crypto::ring::default_provider().install_default() {
         eprintln!("⚠️ rustls crypto provider install failed (ok to ignore): {e:?}");
     }
@@ -31,27 +32,29 @@ pub async fn run(cfg: Config, tx: mpsc::Sender<PumpMint>, gov: Arc<Governor>) {
         match tokio_tungstenite::connect_async(&url).await {
             Ok((ws, _resp)) => {
                 eprintln!("✅ pumpportal connected");
-
                 let (mut write, mut read) = ws.split();
 
-                // Subscription payload
-                // Typical channel: "subscribeNewToken" (whatever your cfg uses)
-                let mut sub = json!({
-                    "method": cfg.pumpportal_channel,
-                });
-
-                // Optional api key support (some services ignore it)
+                // Subscribe to new tokens
+                let mut sub_new = json!({ "method": cfg.pumpportal_channel });
                 if !cfg.pumpportal_api_key.trim().is_empty() {
-                    sub["apiKey"] = json!(cfg.pumpportal_api_key);
+                    sub_new["apiKey"] = json!(cfg.pumpportal_api_key);
                 }
-
-                if let Err(e) = write.send(Message::Text(sub.to_string().into())).await {
-                    eprintln!("❌ pumpportal subscribe send failed: {}", e);
+                if let Err(e) = write.send(Message::Text(sub_new.to_string().into())).await {
+                    eprintln!("❌ pumpportal subscribe(newToken) failed: {}", e);
                     tokio::time::sleep(std::time::Duration::from_secs(2)).await;
                     continue;
                 }
 
-                // Read loop
+                // Also subscribe to all trades — gives us real wallet addresses in real-time
+                // This is the key signal for pre-graduation coins (no Helius needed)
+                let sub_trades = json!({ "method": "subscribeTokenTrade" });
+                if let Err(e) = write.send(Message::Text(sub_trades.to_string().into())).await {
+                    eprintln!("⚠️ pumpportal subscribe(tokenTrade) failed (non-fatal): {}", e);
+                    // Continue anyway — new token stream still works
+                }
+
+                eprintln!("🟣 pumpportal subscribed: newToken + tokenTrade");
+
                 while let Some(item) = read.next().await {
                     let msg = match item {
                         Ok(m) => m,
@@ -67,7 +70,6 @@ pub async fn run(cfg: Config, tx: mpsc::Sender<PumpMint>, gov: Arc<Governor>) {
                         _ => continue,
                     };
 
-                    // Temporary: log full message to see available fields
                     if std::env::var("DEBUG_PP").ok().as_deref() == Some("1") {
                         eprintln!("DBG PP RAW: {}", &text[..text.len().min(500)]);
                     }
@@ -77,42 +79,62 @@ pub async fn run(cfg: Config, tx: mpsc::Sender<PumpMint>, gov: Arc<Governor>) {
                         Err(_) => continue,
                     };
 
-                    // Common shapes: { "mint": "..." } or { "tokenAddress": "..." } or { "address": "..." }
-                    let mint = v
-                        .get("mint")
-                        .and_then(|x| x.as_str())
-                        .or_else(|| v.get("tokenAddress").and_then(|x| x.as_str()))
-                        .or_else(|| v.get("address").and_then(|x| x.as_str()))
-                        .map(|s| s.trim().to_string())
-                        .filter(|s| !s.is_empty());
+                    // Detect message type: trade events have "txType" or "traderPublicKey" + "mint"
+                    let tx_type = v.get("txType").and_then(|x| x.as_str()).unwrap_or("");
+                    let has_trader = v.get("traderPublicKey").is_some();
+                    let has_mint = v.get("mint").is_some();
 
-                    if let Some(mint) = mint {
-                        let market_cap_sol = v
-                            .get("marketCapSol")
-                            .and_then(|x| x.as_f64());
-                        let v_sol_in_bonding_curve = v
-                            .get("vSolInBondingCurve")
-                            .and_then(|x| x.as_f64());
-                        let v_tokens_in_bonding_curve = v
-                            .get("vTokensInBondingCurve")
-                            .and_then(|x| x.as_f64());
-                        let creator = v
-                            .get("traderPublicKey")
+                    if has_mint && has_trader && (tx_type == "buy" || tx_type == "sell" || tx_type == "create") {
+                        // This is a trade event
+                        if let (Some(mint), Some(trader)) = (
+                            v.get("mint").and_then(|x| x.as_str()),
+                            v.get("traderPublicKey").and_then(|x| x.as_str()),
+                        ) {
+                            let sol_amount = v.get("solAmount")
+                                .and_then(|x| x.as_f64())
+                                .unwrap_or(0.0) / 1e9; // lamports → SOL
+
+                            let is_buy = tx_type != "sell";
+                            let market_cap_sol = v.get("marketCapSol").and_then(|x| x.as_f64());
+                            let ts = v.get("timestamp").and_then(|x| x.as_u64())
+                                .unwrap_or_else(crate::time::now);
+
+                            let trade = PumpTrade {
+                                mint: mint.to_string(),
+                                trader: trader.to_string(),
+                                sol_amount,
+                                is_buy,
+                                market_cap_sol,
+                                ts,
+                            };
+
+                            if trade_tx.send(trade).await.is_err() {
+                                eprintln!("🟣 pumpportal trade_tx dropped; stopping");
+                                return;
+                            }
+                        }
+                    } else {
+                        // New token event
+                        let mint = v.get("mint")
                             .and_then(|x| x.as_str())
-                            .map(|s| s.to_string());
+                            .or_else(|| v.get("tokenAddress").and_then(|x| x.as_str()))
+                            .or_else(|| v.get("address").and_then(|x| x.as_str()))
+                            .map(|s| s.trim().to_string())
+                            .filter(|s| !s.is_empty());
 
-                        let pump_mint = PumpMint {
-                            mint,
-                            market_cap_sol,
-                            v_sol_in_bonding_curve,
-                            v_tokens_in_bonding_curve,
-                            creator,
-                        };
+                        if let Some(mint) = mint {
+                            let pump_mint = PumpMint {
+                                mint,
+                                market_cap_sol: v.get("marketCapSol").and_then(|x| x.as_f64()),
+                                v_sol_in_bonding_curve: v.get("vSolInBondingCurve").and_then(|x| x.as_f64()),
+                                v_tokens_in_bonding_curve: v.get("vTokensInBondingCurve").and_then(|x| x.as_f64()),
+                                creator: v.get("traderPublicKey").and_then(|x| x.as_str()).map(|s| s.to_string()),
+                            };
 
-                        // Best-effort send; if receiver is dropped, just stop the task.
-                        if tx.send(pump_mint).await.is_err() {
-                            eprintln!("🟣 pumpportal receiver dropped; stopping task");
-                            return;
+                            if tx.send(pump_mint).await.is_err() {
+                                eprintln!("🟣 pumpportal receiver dropped; stopping");
+                                return;
+                            }
                         }
                     }
                 }
