@@ -13,3 +13,5 @@ dotenvy = "0.15"
 urlencoding = "2"
 env_logger = "0.11"
 lazy_static = "1"
+tokio-tungstenite = { version = "0.21", features = ["rustls-tls-webpki-roots"] }
+futures-util = "0.3"

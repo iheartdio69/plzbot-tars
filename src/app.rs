@@ -1,15 +1,17 @@
 use crate::config::Config;
+use crate::helius::websocket::{subscribe_pump_fun, NewMintsSink};
 use crate::market::cache::MarketCache;
 use crate::market::discovery::{merge_discovered, MarketDiscovery};
+use crate::missed_calls::MissedCallTracker;
 use crate::onchain::fetch_onchain_events;
 use crate::resolver::resolve_calls;
-use crate::missed_calls::MissedCallTracker;
 use crate::rug_tracker::{apply_to_reputation, load_rug_tracker, WalletStrike};
 use crate::scoring::engine::score_and_manage;
 use crate::scoring::shadow::ShadowMap;
 use crate::types::{CallRecord, CoinState};
 use std::collections::{HashMap, VecDeque};
 use std::fs;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 pub async fn run(cfg: Config) {
@@ -26,6 +28,15 @@ pub async fn run(cfg: Config) {
     apply_to_reputation(&rug_tracker);
     println!("🗂️  Rug tracker loaded: {} wallets", rug_tracker.len());
 
+    // Helius WebSocket — catches new pump.fun mints at birth
+    let ws_sink: NewMintsSink = Arc::new(Mutex::new(Vec::new()));
+    let ws_sink_bg = ws_sink.clone();
+    let cfg_ws = cfg.clone();
+    tokio::spawn(async move {
+        subscribe_pump_fun(&cfg_ws, ws_sink_bg).await;
+    });
+    println!("🔌 Helius WebSocket spawned — catching mints at birth");
+
     loop {
         println!(
             "🫀 tick coins={} active={} calls={} market_cache={} discovered={}",
@@ -35,6 +46,21 @@ pub async fn run(cfg: Config) {
             market.map.len(),
             discovered.len()
         );
+
+        // Drain WebSocket new mints into coins
+        {
+            let mut new_mints = ws_sink.lock().unwrap();
+            let mut ws_added = 0usize;
+            for mint in new_mints.drain(..) {
+                coins.entry(mint.clone()).or_insert_with(|| {
+                    ws_added += 1;
+                    CoinState::new_with_mint(mint)
+                });
+            }
+            if ws_added > 0 {
+                println!("⚡ WebSocket: {} new mints added", ws_added);
+            }
+        }
 
         if discovery.should_run(&cfg) {
             let new_mints: Vec<String> = discovery.run(&cfg).await;
