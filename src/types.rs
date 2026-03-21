@@ -76,6 +76,18 @@ pub struct CoinState {
     pub launch_sol: Option<f64>,       // vSolInBondingCurve at first seen
     pub creator_wallet: Option<String>, // deployer wallet — checked vs rug DB
     pub creator_is_rug: bool,           // true = creator flagged in wallets table
+    pub social_score: i32,              // points for twitter/telegram/website at launch
+    pub has_socials: bool,              // has at least one social link
+
+    // -------------------------
+    // enrichment data (async background fetch)
+    // -------------------------
+    pub holder_count: Option<u64>,     // real holder count from Helius
+    pub top_holder_pct: Option<f64>,   // top 1 holder % — rug signal if > 20%
+    pub is_graduated: bool,            // tradeable on Jupiter = graduated pump.fun
+    pub dex_has_socials: bool,         // DexScreener shows twitter/website
+    pub dex_boost_active: u64,         // active DexScreener boosts (marketing signal)
+    pub enrichment_done: bool,         // have we fetched enrichment data yet?
 
     // -------------------------
     // sol flow (from events)
@@ -125,6 +137,16 @@ impl CoinState {
             launch_sol: None,
             creator_wallet: None,
             creator_is_rug: false,
+            social_score: 0,
+            has_socials: false,
+
+            holder_count: None,
+            top_holder_pct: None,
+            is_graduated: false,
+            dex_has_socials: false,
+            dex_boost_active: 0,
+            enrichment_done: false,
+
             sol_flow_5m: 0.0,
 
             demote_streak: 0,

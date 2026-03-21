@@ -1369,9 +1369,33 @@ pub fn process_calls(
             String::new()
         };
 
+        let social_str = if coins.get(mint).map(|s| s.has_socials || s.dex_has_socials).unwrap_or(false) {
+            " | 🌐 Social"
+        } else {
+            ""
+        };
+
+        let holder_str = coins.get(mint)
+            .and_then(|s| s.holder_count)
+            .map(|h| format!(" | 👥 {}", h))
+            .unwrap_or_default();
+
+        let grad_str = if coins.get(mint).map(|s| s.is_graduated).unwrap_or(false) {
+            " | 🎓 GRAD"
+        } else {
+            ""
+        };
+
+        let boost_str = coins.get(mint)
+            .filter(|s| s.dex_boost_active > 0)
+            .map(|s| format!(" | ⚡ {}boost", s.dex_boost_active))
+            .unwrap_or_default();
+
         let tg_msg = format!(
-            "🎯 <b>INTERFECTOR</b>\nMint: <code>{}</code>\nLane: {}\nFDV: ${:.0}\nScore: {} | TX: {} | Signers: {}{}{}{}\n🔗 https://axiom.trade/t/{}",
-            mint, lane_tag, fdv, effective_score, tx5, signers, whale_info, launch_sol_str, sol_flow_str, mint
+            "🎯 <b>INTERFECTOR</b>\nMint: <code>{}</code>\nLane: {}\nFDV: ${:.0}\nScore: {} | TX: {} | Signers: {}{}{}{}{}{}{}{}\n🔗 https://axiom.trade/t/{}",
+            mint, lane_tag, fdv, effective_score, tx5, signers,
+            whale_info, launch_sol_str, sol_flow_str, social_str, holder_str, grad_str, boost_str,
+            mint
         );
         let _ = tg_tx.try_send(tg_msg);
 

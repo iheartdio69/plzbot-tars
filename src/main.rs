@@ -4,6 +4,7 @@ mod banner;
 mod call_log;
 mod config;
 mod db;
+mod enrichment;
 mod fmt;
 mod gambol_log;
 mod governor;
@@ -117,6 +118,7 @@ async fn main() {
     // -------------------------
     let (pump_tx, mut pump_rx) = mpsc::channel::<pumpportal::types::PumpMint>(10_000);
     let (trade_tx, mut trade_rx) = mpsc::channel::<pumpportal::types::PumpTrade>(50_000);
+    let (enrich_result_tx, mut enrich_result_rx) = mpsc::channel::<enrichment::EnrichmentResult>(1_000);
     let cfg_pp = cfg.clone();
 
     // Governor (shared rate limits)
@@ -422,6 +424,49 @@ async fn main() {
                         &tg_tx,
                     );
 
+                    // Drain enrichment results back into CoinState
+                    while let Ok(result) = enrich_result_rx.try_recv() {
+                        if let Some(st) = coins.get_mut(&result.mint) {
+                            st.holder_count = result.holder_count;
+                            st.top_holder_pct = result.top_holder_pct;
+                            st.is_graduated = result.is_graduated;
+                            st.dex_has_socials = result.dex_has_socials;
+                            st.dex_boost_active = result.dex_boost_active;
+                            st.enrichment_done = true;
+
+                            // If top holder > 40% that's a rug red flag — kill the score
+                            if result.top_holder_pct.unwrap_or(0.0) > 0.40 {
+                                eprintln!(
+                                    "🚩 TOP_HOLDER_CONC mint={} top1={:.0}%",
+                                    &result.mint[..8.min(result.mint.len())],
+                                    result.top_holder_pct.unwrap_or(0.0) * 100.0
+                                );
+                                st.score = -999;
+                            }
+                        }
+                    }
+
+                    // Trigger enrichment for active coins that haven't been enriched yet
+                    let unenriched: Vec<String> = active.iter()
+                        .filter(|m| coins.get(*m).map(|s| !s.enrichment_done).unwrap_or(false))
+                        .cloned()
+                        .take(5) // max 5 per tick to avoid API spam
+                        .collect();
+
+                    if !unenriched.is_empty() {
+                        // Mark as in-flight so we don't re-dispatch
+                        for m in &unenriched {
+                            if let Some(st) = coins.get_mut(m) {
+                                st.enrichment_done = true; // will be overwritten when result arrives
+                            }
+                        }
+                        let rpc = cfg.helius_rpc_url.clone();
+                        let tx = enrich_result_tx.clone();
+                        tokio::spawn(async move {
+                            enrichment::run_enrichment_batch(unenriched, rpc, tx).await;
+                        });
+                    }
+
                     // Share active list and pair addresses with background ingest tasks
                     active_tx.send(active.clone()).ok();
                     let tracked = build_tracked_pair_addresses(&coins, &active, &queue, 50);
@@ -663,6 +708,10 @@ fn drain_pump_mints(
                     );
                 }
             }
+
+            // Social quality signal — prepped projects run harder
+            st.social_score = pm.meta.social_score();
+            st.has_socials = pm.meta.has_socials();
 
             coins.insert(mint.clone(), st);
             discovered.push_back(mint);

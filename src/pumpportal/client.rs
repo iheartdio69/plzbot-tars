@@ -1,7 +1,7 @@
 // src/pumpportal/client.rs
 use crate::config::Config;
 use crate::governor::Governor;
-use crate::pumpportal::types::{PumpMint, PumpTrade};
+use crate::pumpportal::types::{PumpMint, PumpMintMeta, PumpTrade};
 use futures_util::{SinkExt, StreamExt};
 use serde_json::json;
 use std::sync::Arc;
@@ -123,12 +123,33 @@ pub async fn run(
                             .filter(|s| !s.is_empty());
 
                         if let Some(mint) = mint {
+                            let meta = PumpMintMeta {
+                                name: v.get("name").and_then(|x| x.as_str()).map(|s| s.to_string()),
+                                symbol: v.get("symbol").and_then(|x| x.as_str()).map(|s| s.to_string()),
+                                description: v.get("description").and_then(|x| x.as_str()).map(|s| s.to_string()),
+                                twitter: v.get("twitter").and_then(|x| x.as_str()).filter(|s| !s.is_empty()).map(|s| s.to_string()),
+                                telegram: v.get("telegram").and_then(|x| x.as_str()).filter(|s| !s.is_empty()).map(|s| s.to_string()),
+                                website: v.get("website").and_then(|x| x.as_str()).filter(|s| !s.is_empty()).map(|s| s.to_string()),
+                                image_uri: v.get("uri").and_then(|x| x.as_str()).map(|s| s.to_string()),
+                            };
+
+                            if meta.has_socials() {
+                                eprintln!(
+                                    "🌐 social mint={} twitter={} tg={} web={}",
+                                    &mint[..8.min(mint.len())],
+                                    meta.twitter.as_deref().unwrap_or("-"),
+                                    meta.telegram.as_deref().unwrap_or("-"),
+                                    meta.website.as_deref().unwrap_or("-"),
+                                );
+                            }
+
                             let pump_mint = PumpMint {
                                 mint,
                                 market_cap_sol: v.get("marketCapSol").and_then(|x| x.as_f64()),
                                 v_sol_in_bonding_curve: v.get("vSolInBondingCurve").and_then(|x| x.as_f64()),
                                 v_tokens_in_bonding_curve: v.get("vTokensInBondingCurve").and_then(|x| x.as_f64()),
                                 creator: v.get("traderPublicKey").and_then(|x| x.as_str()).map(|s| s.to_string()),
+                                meta,
                             };
 
                             if tx.send(pump_mint).await.is_err() {

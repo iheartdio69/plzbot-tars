@@ -277,6 +277,47 @@ pub fn score_all_coins(
             }
         }
 
+        // Social quality bonus — twitter/telegram/website at launch = prepped project
+        // HUGH had twitter + website. Rugs usually have nothing.
+        score += st.social_score;
+
+        // DexScreener social/boost signals (available after graduation)
+        if st.dex_has_socials && !st.has_socials {
+            score += 10; // socials appeared after launch (community forming)
+        }
+        if st.dex_boost_active >= 100 {
+            score += 20; // paid marketing = team is serious
+        } else if st.dex_boost_active >= 10 {
+            score += 10;
+        }
+
+        // Graduation bonus — if Jupiter can route it, real liquidity exists
+        if st.is_graduated {
+            score += 30;
+        }
+
+        // Holder concentration rug check
+        if let Some(top1) = st.top_holder_pct {
+            if top1 > 0.40 {
+                score = -999; // >40% one wallet = instant kill
+                st.low_score_streak = 255;
+                continue;
+            } else if top1 > 0.25 {
+                score -= 30; // concentrated but not instant kill
+            }
+        }
+
+        // Holder count bonus — more holders = more distributed = safer
+        if let Some(holders) = st.holder_count {
+            if holders >= 500 {
+                score += 20;
+            } else if holders >= 100 {
+                score += 10;
+            } else if holders >= 50 {
+                score += 5;
+            }
+        }
+
         // Creator rug penalty — hard kill score if deployer is flagged
         if st.creator_is_rug {
             score = -999;
