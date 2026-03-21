@@ -45,15 +45,11 @@ pub async fn run(
                     continue;
                 }
 
-                // Also subscribe to all trades — gives us real wallet addresses in real-time
-                // This is the key signal for pre-graduation coins (no Helius needed)
-                let sub_trades = json!({ "method": "subscribeTokenTrade" });
-                if let Err(e) = write.send(Message::Text(sub_trades.to_string().into())).await {
-                    eprintln!("⚠️ pumpportal subscribe(tokenTrade) failed (non-fatal): {}", e);
-                    // Continue anyway — new token stream still works
-                }
+                // Note: subscribeTokenTrade requires specific mint addresses via 'keys'.
+                // We subscribe per-coin dynamically as they enter our watch list.
+                // See: subscribe_trades_for_mints() called from main loop.
 
-                eprintln!("🟣 pumpportal subscribed: newToken + tokenTrade");
+                eprintln!("🟣 pumpportal subscribed: newToken");
 
                 while let Some(item) = read.next().await {
                     let msg = match item {
@@ -84,7 +80,8 @@ pub async fn run(
                     let has_trader = v.get("traderPublicKey").is_some();
                     let has_mint = v.get("mint").is_some();
 
-                    if has_mint && has_trader && (tx_type == "buy" || tx_type == "sell" || tx_type == "create") {
+                    // Only route actual buy/sell trades — "create" events are new token launches
+                    if has_mint && has_trader && (tx_type == "buy" || tx_type == "sell") {
                         // This is a trade event
                         if let (Some(mint), Some(trader)) = (
                             v.get("mint").and_then(|x| x.as_str()),
