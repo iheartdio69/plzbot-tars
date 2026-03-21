@@ -3,6 +3,7 @@ use crate::market::cache::MarketCache;
 use crate::market::discovery::{merge_discovered, MarketDiscovery};
 use crate::onchain::fetch_onchain_events;
 use crate::resolver::resolve_calls;
+use crate::rug_tracker::{apply_to_reputation, load_rug_tracker, WalletStrike};
 use crate::scoring::engine::score_and_manage;
 use crate::scoring::shadow::ShadowMap;
 use crate::types::{CallRecord, CoinState};
@@ -19,6 +20,9 @@ pub async fn run(cfg: Config) {
     let mut discovered: VecDeque<String> = VecDeque::new();
     let mut discovery = MarketDiscovery::default();
     let mut shadow: ShadowMap = HashMap::new();
+    let mut rug_tracker: HashMap<String, WalletStrike> = load_rug_tracker();
+    apply_to_reputation(&rug_tracker);
+    println!("🗂️  Rug tracker loaded: {} wallets", rug_tracker.len());
 
     loop {
         println!(
@@ -83,6 +87,7 @@ pub async fn run(cfg: Config) {
             &cfg,
             &market,
             &mut calls,
+            &mut rug_tracker,
             &cfg.telegram_bot_token,
             &cfg.telegram_chat_id,
         );

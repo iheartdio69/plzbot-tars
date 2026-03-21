@@ -7,6 +7,7 @@ mod market;
 mod onchain;
 mod reputation;
 mod resolver;
+mod rug_tracker;
 mod scoring;
 mod telegram;
 mod time;

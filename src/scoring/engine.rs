@@ -97,17 +97,23 @@ pub fn score_and_manage(
             continue;
         }
 
-        // 2. Buy/sell ratio (strong signal)
-        //    1.5x = +10, 2x = +20, 3x+ = +30
-        let bsr = trend.buy_sell_ratio;
+        // 2. Buy/sell ratio — only meaningful with real volume
+        let bsr = if trend.buys_5m + trend.sells_5m >= 5 {
+            trend.buy_sell_ratio
+        } else {
+            1.0 // not enough txs to trust the ratio
+        };
         if bsr >= 1.5 { score += 10; }
         if bsr >= 2.0 { score += 10; }
         if bsr >= 3.0 { score += 10; }
 
-        // 3. Raw buy count in 5m
-        if trend.buys_5m >= cfg.min_buys_5m { score += 10; }
+        // 3. Raw buy count in 5m — need real buys, not 1
+        if trend.buys_5m < cfg.min_buys_5m {
+            skip_activity += 1;
+            continue; // hard gate — must have real activity
+        }
         if trend.buys_5m >= 25 { score += 10; }
-        if trend.buys_5m >= 50 { score += 10; }
+        if trend.buys_5m >= 50 { score += 15; }
 
         // 4. Liquidity health
         if liq >= 5_000.0 { score += 5; }
