@@ -3,6 +3,7 @@ use crate::market::cache::MarketCache;
 use crate::market::discovery::{merge_discovered, MarketDiscovery};
 use crate::onchain::fetch_onchain_events;
 use crate::resolver::resolve_calls;
+use crate::missed_calls::MissedCallTracker;
 use crate::rug_tracker::{apply_to_reputation, load_rug_tracker, WalletStrike};
 use crate::scoring::engine::score_and_manage;
 use crate::scoring::shadow::ShadowMap;
@@ -21,6 +22,7 @@ pub async fn run(cfg: Config) {
     let mut discovery = MarketDiscovery::default();
     let mut shadow: ShadowMap = HashMap::new();
     let mut rug_tracker: HashMap<String, WalletStrike> = load_rug_tracker();
+    let mut missed_tracker = MissedCallTracker::load();
     apply_to_reputation(&rug_tracker);
     println!("🗂️  Rug tracker loaded: {} wallets", rug_tracker.len());
 
@@ -61,6 +63,7 @@ pub async fn run(cfg: Config) {
             &mut calls,
             &market,
             &mut shadow,
+            &mut missed_tracker,
         );
 
         // Send Telegram alert for any new calls

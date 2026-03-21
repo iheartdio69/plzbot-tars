@@ -5,6 +5,7 @@ mod helius;
 mod io;
 mod market;
 mod onchain;
+mod missed_calls;
 mod reputation;
 mod resolver;
 mod rug_tracker;

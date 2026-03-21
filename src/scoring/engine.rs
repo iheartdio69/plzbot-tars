@@ -1,5 +1,6 @@
 use crate::config::Config;
 use crate::market::cache::{market_trend, MarketCache};
+use crate::missed_calls::MissedCallTracker;
 use crate::reputation::{RUG_WALLETS, WALLET_REPUTATION};
 use crate::scoring::shadow::{shadow_should_add, shadow_touch, ShadowMap};
 use crate::scoring::window::{prune_window, window_wallets, window_whales};
@@ -24,6 +25,7 @@ pub fn score_and_manage(
     calls: &mut Vec<CallRecord>,
     market: &MarketCache,
     shadow: &mut ShadowMap,
+    missed: &mut MissedCallTracker,
 ) {
     let mints: Vec<String> = coins.keys().cloned().collect();
     let mut scanned = 0u64;
@@ -71,6 +73,10 @@ pub fn score_and_manage(
         };
         let liq = trend.last_liq.unwrap_or(0.0);
 
+        // Track this coin for missed call analysis
+        let was_called = calls.iter().any(|c| c.mint == mint);
+        missed.update(&mint, fdv, trend.buys_5m, trend.fdv_velocity_pct, trend.buy_sell_ratio, cfg, was_called);
+
         // FDV band gate
         if fdv < cfg.min_call_fdv_usd || fdv > cfg.max_call_fdv_usd {
             skip_fdv_band += 1;
@@ -87,14 +93,14 @@ pub fn score_and_manage(
         let mut score = 0i32;
 
         // 1. FDV velocity (primary signal) — % per minute
-        //    2%/min = +20pts, 5%/min = +40pts, 10%/min = +60pts
         let vel = trend.fdv_velocity_pct;
-        if vel > 0.0 {
-            score += (vel * 6.0).min(60.0) as i32;
-        } else if vel < -5.0 {
-            // Dumping fast — skip
+        if vel < -2.0 {
+            // Actively dumping — skip
             skip_velocity += 1;
             continue;
+        }
+        if vel > 0.0 {
+            score += (vel * 6.0).min(60.0) as i32;
         }
 
         // 2. Buy/sell ratio — only meaningful with real volume
@@ -161,8 +167,8 @@ pub fn score_and_manage(
         if score < cfg.score_target {
             skip_activity += 1;
 
-            // Log interesting near-misses
-            if score >= cfg.score_target - 15 && vel > 1.0 {
+            // Log near-misses so we can see what's close
+            if score >= cfg.score_target - 20 {
                 println!(
                     "{}",
                     format!(
