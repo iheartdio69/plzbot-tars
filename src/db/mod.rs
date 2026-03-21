@@ -1656,4 +1656,28 @@ impl Db {
         let n: u64 = stmt.query_row((mint, since), |r| r.get(0))?;
         Ok(n)
     }
+
+    pub fn upsert_tars_position(&mut self, mint: &str, entry_fdv: f64, current_fdv: f64, sol_spent: f64, opened_ts: i64) -> Result<()> {
+        self.conn.execute(
+            "INSERT OR REPLACE INTO tars_positions (mint, entry_fdv, current_fdv, sol_spent, opened_ts, closed) VALUES (?1, ?2, ?3, ?4, ?5, 0)",
+            rusqlite::params![mint, entry_fdv, current_fdv, sol_spent, opened_ts],
+        )?;
+        Ok(())
+    }
+
+    pub fn update_tars_position_fdv(&mut self, mint: &str, current_fdv: f64) -> Result<()> {
+        self.conn.execute(
+            "UPDATE tars_positions SET current_fdv = ?1 WHERE mint = ?2 AND closed = 0",
+            rusqlite::params![current_fdv, mint],
+        )?;
+        Ok(())
+    }
+
+    pub fn close_tars_position(&mut self, mint: &str, reason: &str, ts: i64) -> Result<()> {
+        self.conn.execute(
+            "UPDATE tars_positions SET closed = 1, close_reason = ?1, closed_ts = ?2 WHERE mint = ?3",
+            rusqlite::params![reason, ts, mint],
+        )?;
+        Ok(())
+    }
 }

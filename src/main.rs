@@ -483,12 +483,15 @@ async fn main() {
 
                 // TARS auto-buy on new calls
                 if cfg.tars_enabled {
+                    eprintln!("DBG TARS: enabled=true calls={} positions={}", calls.len(), tars_positions.len());
                     // open position for each new call
                     for call in calls.iter().rev().take(1) {
+                        eprintln!("DBG TARS: checking call mint={} market_has={}", &call.mint[..8], market.map.contains_key(&call.mint));
                         if let Some(ms) = market.map.get(&call.mint) {
                             if let Some(fdv) = ms.fdv {
                                 let already_open = tars_positions.iter()
                                     .any(|p| p.mint == call.mint && !p.closed);
+                                eprintln!("DBG TARS: fdv={:.0} already_open={}", fdv, already_open);
 
                                 if !already_open {
                                     let pub_key = cfg.pumpportal_public_key.clone();
@@ -508,6 +511,9 @@ async fn main() {
                                     tars_positions.push(crate::tars::Position::new(
                                         &call.mint, fdv, sol, now_ts
                                     ));
+
+                                    // Write to DB for dashboard
+                                    let _ = db.upsert_tars_position(&call.mint, fdv, fdv, sol, now_ts);
 
                                     println!("🤖 TARS opened position: {} entry=${:.0}",
                                         &call.mint[..8], fdv);
@@ -530,6 +536,9 @@ async fn main() {
                         // get current FDV from market cache
                         if let Some(ms) = market.map.get(&pos.mint) {
                             if let Some(fdv) = ms.fdv {
+                                // keep dashboard in sync
+                                let _ = db.update_tars_position_fdv(&pos.mint, fdv);
+
                                 let signal = pos.check_exits(
                                     fdv,
                                     cfg.tars_tp1_mult,
@@ -540,7 +549,9 @@ async fn main() {
 
                                 match signal {
                                     Some(crate::tars::ExitSignal::TakeProfit1) => {
-                                        println!("🤖 TARS TP1 {:.2}x — selling 50%", fdv / pos.entry_fdv);
+                                        let mult = fdv / pos.entry_fdv;
+                                        println!("🤖 TARS TP1 {:.2}x — selling 50%", mult);
+                                        let _ = db.update_tars_position_fdv(&pos.mint, fdv);
                                         let pub_key = cfg.pumpportal_public_key.clone();
                                         let priv_key = cfg.pumpportal_private_key.clone();
                                         let mint = pos.mint.clone();
@@ -579,8 +590,9 @@ async fn main() {
                                         });
                                     }
                                     Some(crate::tars::ExitSignal::StopLoss) => {
-                                        println!("🛑 TARS SL {:.2}x — selling 95%, keeping 5% moon bag 🌙",
-                                            fdv / pos.entry_fdv);
+                                        let mult = fdv / pos.entry_fdv;
+                                        println!("🛑 TARS SL {:.2}x — selling 95%, keeping 5% moon bag 🌙", mult);
+                                        let _ = db.close_tars_position(&pos.mint, "StopLoss", now_ts);
                                         let pub_key = cfg.pumpportal_public_key.clone();
                                         let priv_key = cfg.pumpportal_private_key.clone();
                                         let mint = pos.mint.clone();

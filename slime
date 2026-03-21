@@ -9,7 +9,8 @@ pkill dashboard 2>/dev/null
 lsof -ti:3000 | xargs kill -9 2>/dev/null
 sleep 3
 
-# Launch dashboard in background
+# Launch dashboard in background (source .env so TARS_ENABLED etc are visible)
+set -a; source .env; set +a
 ./target/release/dashboard > dashboard.log 2>&1 &
 echo "🌊 TARS Dashboard live at http://localhost:3000"
 

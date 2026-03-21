@@ -124,3 +124,17 @@ CREATE TABLE IF NOT EXISTS watchlist_wallets (
   wins          INTEGER NOT NULL DEFAULT 0,
   losses        INTEGER NOT NULL DEFAULT 0
 );
+-- TARS live positions
+CREATE TABLE IF NOT EXISTS tars_positions (
+  mint         TEXT PRIMARY KEY,
+  entry_fdv    REAL NOT NULL,
+  current_fdv  REAL,
+  sol_spent    REAL NOT NULL,
+  opened_ts    INTEGER NOT NULL,
+  tp1_hit      INTEGER NOT NULL DEFAULT 0,
+  tp2_hit      INTEGER NOT NULL DEFAULT 0,
+  tp3_hit      INTEGER NOT NULL DEFAULT 0,
+  closed       INTEGER NOT NULL DEFAULT 0,
+  close_reason TEXT,
+  closed_ts    INTEGER
+);

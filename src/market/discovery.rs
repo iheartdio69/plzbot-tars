@@ -46,9 +46,19 @@ struct TxnPeriod {
     sells: Option<u64>,
 }
 
+// Token profiles endpoint — returns newest tokens regardless of name/keyword
+#[derive(Deserialize, Debug)]
+struct TokenProfile {
+    #[serde(rename = "chainId")]
+    chain_id: String,
+    #[serde(rename = "tokenAddress")]
+    token_address: String,
+}
+
 #[derive(Default)]
 pub struct MarketDiscovery {
     pub last_run: Option<Instant>,
+    pub last_profiles_run: Option<Instant>,
 }
 
 impl MarketDiscovery {
@@ -66,9 +76,14 @@ impl MarketDiscovery {
         self.last_run = Some(Instant::now());
 
         let mut found_mints: HashSet<String> = HashSet::new();
-        let client = reqwest::Client::new();
+        let client = reqwest::Client::builder()
+            .timeout(Duration::from_secs(10))
+            .build()
+            .unwrap_or_default();
 
-        // age cutoff
+        // ---------------------------------------------------------------
+        // SOURCE 1: DexScreener keyword search (existing)
+        // ---------------------------------------------------------------
         let now = crate::time::now(); // seconds
         let max_age = cfg.discovery_max_age_secs;
         let min_pair_created_ms = if max_age > 0 {
@@ -99,14 +114,15 @@ impl MarketDiscovery {
                     continue;
                 }
 
-                // age filter (requires pairCreatedAt when DISCOVERY_MAX_AGE_SECS > 0)
+                // age filter — but don't hard-require pairCreatedAt
+                // if it's missing, let it through (we'll score it anyway)
                 if let Some(cutoff_ms) = min_pair_created_ms {
-                    let Some(created_ms) = pair.pair_created_at else {
-                        continue;
-                    };
-                    if created_ms < cutoff_ms {
-                        continue;
+                    if let Some(created_ms) = pair.pair_created_at {
+                        if created_ms < cutoff_ms {
+                            continue;
+                        }
                     }
+                    // if pairCreatedAt missing — allow through, don't skip
                 }
 
                 let fdv = match pair.fdv {
@@ -124,10 +140,7 @@ impl MarketDiscovery {
 
                 let mint = sanitize_mint(pair.base_token.address);
 
-                if mint.is_empty() {
-                    continue;
-                }
-                if !is_probably_pubkey(&mint) {
+                if mint.is_empty() || !is_probably_pubkey(&mint) {
                     continue;
                 }
 
@@ -136,6 +149,50 @@ impl MarketDiscovery {
                     && (tx_5m as u64) >= cfg.discovery_min_tx_5m
                 {
                     found_mints.insert(mint);
+                }
+            }
+        }
+
+        // ---------------------------------------------------------------
+        // SOURCE 2: DexScreener token-profiles/latest — newest coins on
+        // Solana, no keyword dependency. Runs every discovery cycle.
+        // This catches any coin that doesn't contain "pump" in its name.
+        // ---------------------------------------------------------------
+        let profiles_url = "https://api.dexscreener.com/token-profiles/latest/v1";
+        if let Ok(resp) = client.get(profiles_url).send().await {
+            if let Ok(profiles) = resp.json::<Vec<TokenProfile>>().await {
+                for profile in profiles {
+                    if profile.chain_id != "solana" {
+                        continue;
+                    }
+                    let mint = sanitize_mint(profile.token_address);
+                    if !mint.is_empty() && is_probably_pubkey(&mint) {
+                        found_mints.insert(mint);
+                    }
+                }
+                eprintln!(
+                    "DBG discovery: profiles={} keyword_search_total={}",
+                    found_mints.len(),
+                    found_mints.len()
+                );
+            }
+        }
+
+        // ---------------------------------------------------------------
+        // SOURCE 3: DexScreener boosted tokens — often early runners with
+        // dev momentum behind them.
+        // ---------------------------------------------------------------
+        let boosted_url = "https://api.dexscreener.com/token-boosts/latest/v1";
+        if let Ok(resp) = client.get(boosted_url).send().await {
+            if let Ok(profiles) = resp.json::<Vec<TokenProfile>>().await {
+                for profile in profiles {
+                    if profile.chain_id != "solana" {
+                        continue;
+                    }
+                    let mint = sanitize_mint(profile.token_address);
+                    if !mint.is_empty() && is_probably_pubkey(&mint) {
+                        found_mints.insert(mint);
+                    }
                 }
             }
         }

@@ -76,7 +76,7 @@
 
   /* LEFT PANEL */
   .left-panel {
-    width: 280px;
+    width: 520px;
     flex-shrink: 0;
     border-right: 1px solid #1e1e1e;
     display: flex;
@@ -101,7 +101,7 @@
 
   .col-headers {
     display: grid;
-    grid-template-columns: 1fr 50px 70px 40px 55px;
+    grid-template-columns: 2fr 55px 80px 45px 65px;
     padding: 5px 12px;
     border-bottom: 1px solid #1a1a1a;
     color: #444;
@@ -117,7 +117,7 @@
 
   .target-row {
     display: grid;
-    grid-template-columns: 1fr 50px 70px 40px 55px;
+    grid-template-columns: 2fr 55px 80px 45px 65px;
     padding: 7px 12px;
     border-bottom: 1px solid #161616;
     align-items: center;
@@ -126,7 +126,7 @@
   .target-row:hover { background: #141414; }
 
   .t-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 6px; background: #00ff88; box-shadow: 0 0 5px #00ff88; }
-  .t-mint { color: #00d4ff; font-size: 12px; }
+  .t-mint { color: #00d4ff; font-size: 10px; word-break: break-all; }
   .t-score { color: #ffcc00; font-weight: bold; }
   .t-fdv { color: #c8c8c8; }
   .t-age { color: #666; }
@@ -355,12 +355,21 @@
       <span>● ACTIVE TARGETS</span>
       <span class="count" id="active-count">0 / 10</span>
     </div>
+
+    <!-- MANUAL BUY -->
+    <div style="display:flex;gap:6px;padding:6px 8px;background:#0a0a0a;border-bottom:1px solid #1a1a1a">
+      <input id="manual-mint" placeholder="paste mint address…" style="flex:1;background:#111;border:1px solid #333;color:#eee;padding:4px 8px;border-radius:4px;font-size:11px;font-family:monospace" />
+      <input id="manual-sol" placeholder="SOL" value="0.05" style="width:48px;background:#111;border:1px solid #333;color:#ffcc00;padding:4px 6px;border-radius:4px;font-size:11px;text-align:center" />
+      <button onclick="manualBuy()" style="background:#00ff88;color:#000;border:none;padding:4px 10px;border-radius:4px;font-size:11px;font-weight:bold;cursor:pointer">BUY</button>
+    </div>
+    <div id="buy-status" style="font-size:10px;padding:2px 8px;color:#888;min-height:16px"></div>
+
     <div class="col-headers">
       <span>MINT</span>
       <span>SCORE</span>
       <span>FDV</span>
       <span>AGE</span>
-      <span>WALLETS</span>
+      <span>TX/5m</span>
     </div>
     <div class="targets-list" id="targets-list">
       <div class="empty-row">NO ACTIVE TARGETS</div>
@@ -477,6 +486,18 @@ async function fetchData() {
     document.getElementById('top-active').textContent = d.active_count ?? '–';
     document.getElementById('top-calls').textContent = d.calls_today?.length ?? '–';
 
+    // TARS enabled indicator
+    const tarsEl = document.getElementById('top-tars');
+    if (tarsEl) {
+      if (d.tars_enabled) {
+        tarsEl.textContent = 'ON';
+        tarsEl.className = 'ts-value green';
+      } else {
+        tarsEl.textContent = 'OFF';
+        tarsEl.className = 'ts-value red';
+      }
+    }
+
     if (d.perf) {
       const wr = d.perf.total > 0 ? Math.round(d.perf.win_rate * 100) + '%' : '–%';
       document.getElementById('top-winrate').textContent = wr;
@@ -493,18 +514,23 @@ async function fetchData() {
       }
     }
 
-    // Active targets (use positions as proxy if no dedicated endpoint)
+    // Active targets
     const targetsList = document.getElementById('targets-list');
-    document.getElementById('active-count').textContent = (d.positions?.length ?? 0) + ' / 10';
-    if (d.positions?.length > 0) {
-      targetsList.innerHTML = d.positions.map(p => `
-        <div class="target-row">
-          <span><span class="t-dot"></span><span class="t-mint">${p.mint.slice(0,10)}…</span></span>
-          <span class="t-score">${p.tag || '–'}</span>
-          <span class="t-fdv">${fmtFdv(p.entry_fdv)}</span>
-          <span class="t-age">–</span>
-          <span class="t-wallets">–</span>
-        </div>`).join('');
+    const targets = d.active_targets ?? [];
+    document.getElementById('active-count').textContent = targets.length + ' / 10';
+    if (targets.length > 0) {
+      targetsList.innerHTML = targets.map(t => {
+        const ageMins = Math.floor((t.age_secs ?? 0) / 60);
+        const ageStr = ageMins < 60 ? ageMins + 'm' : Math.floor(ageMins/60) + 'h';
+        const scoreColor = t.score >= 100 ? '#00ff88' : t.score >= 60 ? '#ffcc00' : '#888';
+        return `<div class="target-row">
+          <span><span class="t-dot"></span><span class="t-mint" onclick="navigator.clipboard.writeText('${t.mint}');this.textContent='✅ copied!';setTimeout(()=>this.textContent='${t.mint}',1200)" title="click to copy" style="cursor:pointer">${t.mint}</span></span>
+          <span class="t-score" style="color:${scoreColor}">${t.score}</span>
+          <span class="t-fdv">${fmtFdv(t.fdv_usd)}</span>
+          <span class="t-age">${ageStr}</span>
+          <span class="t-wallets">${t.tx_5m ?? 0}tx</span>
+        </div>`;
+      }).join('');
     } else {
       targetsList.innerHTML = '<div class="empty-row">NO ACTIVE TARGETS</div>';
     }
@@ -589,6 +615,26 @@ fetchData();
 fetchLog();
 setInterval(fetchData, 4000);
 setInterval(fetchLog, 1500);
+
+async function manualBuy() {
+  const mint = document.getElementById('manual-mint').value.trim();
+  const sol = document.getElementById('manual-sol').value.trim() || '0.05';
+  const status = document.getElementById('buy-status');
+  if (!mint) { status.textContent = '⚠ paste a mint first'; status.style.color='#ff4444'; return; }
+  status.textContent = '⏳ sending buy…'; status.style.color='#ffcc00';
+  try {
+    const r = await fetch(`/api/buy?mint=${encodeURIComponent(mint)}&sol=${sol}`);
+    const d = await r.json();
+    if (d.ok) {
+      status.textContent = '✅ ' + d.message; status.style.color='#00ff88';
+      document.getElementById('manual-mint').value = '';
+    } else {
+      status.textContent = '❌ ' + d.message; status.style.color='#ff4444';
+    }
+  } catch(e) {
+    status.textContent = '❌ ' + e; status.style.color='#ff4444';
+  }
+}
 </script>
 </body>
 </html>
