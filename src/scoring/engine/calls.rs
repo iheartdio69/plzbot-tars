@@ -200,8 +200,11 @@ pub fn process_calls(
     let refined_min_signer_strength: u64 = 12;
 
     // Age gates
-    let soft_max_age_sec: u64 = 2 * 60 * 60;
-    let hard_max_age_sec: u64 = 2 * 24 * 60 * 60;
+    // Soft watch: coins can sit flat for hours then rip — don't discard them
+    // Soft limit: deprioritize after 6h (needs signer strength to stay active)
+    // Hard limit: only kill after 48h of total inactivity
+    let soft_max_age_sec: u64 = 6 * 60 * 60;
+    let hard_max_age_sec: u64 = 48 * 60 * 60;
 
     // Late-entry
     let late_prev_window_sec: i64 = 30 * 60;
@@ -754,7 +757,8 @@ pub fn process_calls(
         }
 
         // 9) Age rules
-        let revival_by_age_ok: bool = true_age_sec > soft_max_age_sec && signer_strength >= 25;
+        // Revival: coin that's been sitting can come back to life — just needs some activity
+        let revival_by_age_ok: bool = true_age_sec > soft_max_age_sec && signer_strength >= 10;
 
         if true_age_sec > hard_max_age_sec {
             skip_and_maybe_demote(
