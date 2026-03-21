@@ -6,7 +6,9 @@ mod io;
 mod market;
 mod onchain;
 mod reputation;
+mod resolver;
 mod scoring;
+mod telegram;
 mod time;
 mod types;
 

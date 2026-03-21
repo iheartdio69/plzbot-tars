@@ -2,6 +2,7 @@ use crate::config::Config;
 use crate::market::cache::MarketCache;
 use crate::market::discovery::{merge_discovered, MarketDiscovery};
 use crate::onchain::fetch_onchain_events;
+use crate::resolver::resolve_calls;
 use crate::scoring::engine::score_and_manage;
 use crate::scoring::shadow::ShadowMap;
 use crate::types::{CallRecord, CoinState};
@@ -47,6 +48,7 @@ pub async fn run(cfg: Config) {
         let mint_list: Vec<String> = coins.keys().cloned().collect();
         market.poll(&cfg, &mint_list).await;
         fetch_onchain_events(&cfg, &mut coins).await;
+        let prev_call_count = calls.len();
         score_and_manage(
             &cfg,
             &mut coins,
@@ -56,6 +58,39 @@ pub async fn run(cfg: Config) {
             &market,
             &mut shadow,
         );
+
+        // Send Telegram alert for any new calls
+        if calls.len() > prev_call_count && !cfg.telegram_bot_token.is_empty() {
+            for call in &calls[prev_call_count..] {
+                crate::telegram::send_message(
+                    &cfg.telegram_bot_token,
+                    &cfg.telegram_chat_id,
+                    &call.mint,
+                ).await;
+                crate::telegram::send_message(
+                    &cfg.telegram_bot_token,
+                    &cfg.telegram_chat_id,
+                    &format!(
+                        "🎯 <b>CALL</b>\nScore: {}\nDexscreener: https://dexscreener.com/solana/{}",
+                        call.score, call.mint
+                    ),
+                ).await;
+            }
+        }
+
+        // Resolve outcomes on existing calls
+        let resolution_alerts = resolve_calls(
+            &cfg,
+            &market,
+            &mut calls,
+            &cfg.telegram_bot_token,
+            &cfg.telegram_chat_id,
+        );
+        for (_mint, msg) in resolution_alerts {
+            if !cfg.telegram_bot_token.is_empty() {
+                crate::telegram::send_message(&cfg.telegram_bot_token, &cfg.telegram_chat_id, &msg).await;
+            }
+        }
 
         // Write state for the UI dashboard
         let _ = fs::create_dir_all("data");

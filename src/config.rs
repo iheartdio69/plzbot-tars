@@ -61,6 +61,9 @@ pub struct Config {
     pub mid_wallet_mult: f64,
     pub mid_tx_mult: f64,
 
+    pub telegram_bot_token: String,
+    pub telegram_chat_id: String,
+
     // FDV velocity — % per minute to consider a coin "pumping"
     pub fdv_velocity_threshold: f64,
     // Minimum buy/sell ratio to consider bullish
@@ -174,6 +177,9 @@ pub fn load_config() -> Config {
         win_tx_mult: get_f64("WIN_TX_MULT", 2.0),
         mid_wallet_mult: get_f64("MID_WALLET_MULT", 1.1),
         mid_tx_mult: get_f64("MID_TX_MULT", 1.3),
+
+        telegram_bot_token: getenv("TELEGRAM_BOT_TOKEN", ""),
+        telegram_chat_id: getenv("TELEGRAM_CHAT_ID", ""),
 
         fdv_velocity_threshold: get_f64("FDV_VELOCITY_THRESHOLD", 2.0), // 2% per minute
         min_buy_sell_ratio: get_f64("MIN_BUY_SELL_RATIO", 1.5),

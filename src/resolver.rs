@@ -1,158 +1,105 @@
 use crate::config::Config;
-use crate::scoring::window::window_stats_for;
-use crate::time::now;
-use crate::types::{CallRecord, CoinState, Event, WalletStats, WhalePerf, WhaleTier};
+use crate::market::cache::{market_trend, MarketCache};
+use crate::time::now_ts;
+use crate::types::CallRecord;
 use colored::*;
-use std::collections::{HashMap, HashSet};
 
-#[derive(Debug, Default)]
-pub struct WhaleWindow {
-    pub beluga_count: usize,
-    pub blue_count: usize,
-}
+// Resolve calls based on FDV change from call time
+// WIN  = FDV 2x+ from call price
+// MID  = FDV 1.3x–2x
+// LOSS = FDV < 1.3x or dumped below call price
 
-fn stats_since(events: &[Event], since_ts: u64) -> (usize, usize, WhaleWindow) {
-    let mut uniq = HashSet::<&str>::new();
-    let mut beluga = HashSet::<&str>::new();
-    let mut blue = HashSet::<&str>::new();
-    let mut tx = 0usize;
-
-    for e in events.iter() {
-        if e.ts < since_ts {
-            continue;
-        }
-        tx += 1;
-        uniq.insert(&e.wallet);
-
-        match e.tier {
-            WhaleTier::Blue => {
-                blue.insert(&e.wallet);
-            }
-            WhaleTier::Beluga => {
-                beluga.insert(&e.wallet);
-            }
-            WhaleTier::None => {}
-        }
-    }
-
-    (
-        tx,
-        uniq.len(),
-        WhaleWindow {
-            beluga_count: beluga.len(),
-            blue_count: blue.len(),
-        },
-    )
-}
-
-pub fn resolver_tick(
+pub fn resolve_calls(
     cfg: &Config,
-    coins: &HashMap<String, CoinState>,
+    market: &MarketCache,
     calls: &mut Vec<CallRecord>,
-    wallets: &mut HashMap<String, WalletStats>,
-    whales: &mut HashMap<String, WhalePerf>,
-) {
-    let now_ts = now();
+    tg_token: &str,
+    tg_chat: &str,
+) -> Vec<(String, String)> {
+    let now = now_ts();
+    let mut alerts: Vec<(String, String)> = Vec::new();
 
     for call in calls.iter_mut() {
         if call.outcome.is_some() {
             continue;
         }
 
-        let elapsed = now_ts.saturating_sub(call.call_ts);
+        let elapsed = now.saturating_sub(call.call_ts);
 
-        if call.t5_ts.is_none() && elapsed >= cfg.resolve_t5_secs {
-            if let Some(c) = coins.get(&call.mint) {
-                let (tx_now, signers_now, _ww) = window_stats_for(&c.events, cfg.window_secs);
-                call.t5_ts = Some(now_ts);
-                call.wallets_t5 = Some(signers_now);
-                call.tx_t5 = Some(tx_now);
-            } else {
-                call.t5_ts = Some(now_ts);
-                call.wallets_t5 = Some(0);
-                call.tx_t5 = Some(0);
-            }
+        // Need at least T+5 to resolve
+        if elapsed < cfg.resolve_t5_secs {
+            continue;
         }
 
+        // Get current FDV from market cache
+        let trend = market_trend(market, &call.mint, cfg);
+        let current_fdv = match trend.last_fdv {
+            Some(f) if f > 0.0 => f,
+            _ => continue, // no data yet
+        };
+
+        // T+5 snapshot
+        if call.t5_ts.is_none() && elapsed >= cfg.resolve_t5_secs {
+            call.t5_ts = Some(now);
+            // Store FDV at T5 in wallets_t5 as a proxy (reusing field)
+            // We'll store the FDV*100 as an integer for now
+            call.wallets_t5 = Some((current_fdv / 100.0) as usize);
+        }
+
+        // Final resolution at T+15
         if elapsed >= cfg.resolve_t15_secs {
-            if let Some(c) = coins.get(&call.mint) {
-                let (tx_now, signers_now, _ww) = stats_since(&c.events, call.call_ts);
+            call.t15_ts = Some(now);
 
-                call.t15_ts = Some(now_ts);
-                call.wallets_t15 = Some(signers_now);
-                call.tx_t15 = Some(tx_now);
+            // Reconstruct call FDV from score (rough) — or use stored T5
+            // Better: compare to first known FDV from market cache oldest snapshot
+            let call_fdv = market.map.get(&call.mint)
+                .and_then(|snaps| snaps.first())
+                .and_then(|s| s.fdv)
+                .unwrap_or(current_fdv);
 
-                let w5 = call.wallets_t5.unwrap_or(0).max(1);
-                let t5 = call.tx_t5.unwrap_or(0).max(1);
+            let mult = if call_fdv > 0.0 { current_fdv / call_fdv } else { 1.0 };
 
-                let w_mult = (signers_now as f64) / (w5 as f64);
-                let t_mult = (tx_now as f64) / (t5 as f64);
-
-                let outcome = if w_mult >= cfg.win_wallet_mult || t_mult >= cfg.win_tx_mult {
-                    "WIN"
-                } else if w_mult >= cfg.mid_wallet_mult || t_mult >= cfg.mid_tx_mult {
-                    "MID"
-                } else {
-                    "LOSS"
-                };
-
-                call.outcome = Some(outcome.to_string());
-
-                match outcome {
-                    "WIN" => println!(
-                        "{}",
-                        format!(
-                            "✅ RESOLVED WIN: {}  (w {}→{} {:.2}x | tx {}→{} {:.2}x)",
-                            call.mint, w5, signers_now, w_mult, t5, tx_now, t_mult
-                        )
-                        .bold()
-                        .bright_green()
-                    ),
-                    "MID" => println!(
-                        "{}",
-                        format!(
-                            "➖ RESOLVED MID: {}  (w {}→{} {:.2}x | tx {}→{} {:.2}x)",
-                            call.mint, w5, signers_now, w_mult, t5, tx_now, t_mult
-                        )
-                        .bright_black()
-                    ),
-                    _ => println!(
-                        "{}",
-                        format!(
-                            "❌ RESOLVED LOSS: {}  (w {}→{} {:.2}x | tx {}→{} {:.2}x)",
-                            call.mint, w5, signers_now, w_mult, t5, tx_now, t_mult
-                        )
-                        .bold()
-                        .red()
-                    ),
-                }
-
-                if outcome == "WIN" || outcome == "LOSS" {
-                    for w in call.wallets_involved.iter() {
-                        let ws = wallets.entry(w.clone()).or_default();
-                        if outcome == "WIN" {
-                            ws.wins = ws.wins.saturating_add(1);
-                            ws.score = ws.score.saturating_add(6);
-                        } else {
-                            ws.losses = ws.losses.saturating_add(1);
-                            ws.score = ws.score.saturating_sub(2);
-                        }
-                    }
-
-                    for w in call.whales_involved.iter() {
-                        let wp = whales.entry(w.clone()).or_default();
-                        if outcome == "WIN" {
-                            wp.wins = wp.wins.saturating_add(1);
-                            wp.score += 1.0;
-                        } else {
-                            wp.losses = wp.losses.saturating_add(1);
-                            wp.score -= 1.0;
-                        }
-                    }
-                }
+            let outcome = if mult >= 2.0 {
+                "WIN"
+            } else if mult >= 1.3 {
+                "MID"
             } else {
-                call.outcome = Some("LOSS".to_string());
+                "LOSS"
+            };
+
+            call.outcome = Some(outcome.to_string());
+
+            match outcome {
+                "WIN" => {
+                    let msg = format!(
+                        "✅ WIN → {} | {:.2}x | FDV ${:.0}",
+                        &call.mint[..12], mult, current_fdv
+                    );
+                    println!("{}", msg.bold().bright_green());
+                    alerts.push((call.mint.clone(), format!(
+                        "✅ <b>WIN</b> {:.2}x\n{}\nFDV now: ${:.0}",
+                        mult, call.mint, current_fdv
+                    )));
+                }
+                "MID" => {
+                    println!("{}", format!(
+                        "➖ MID → {} | {:.2}x", &call.mint[..12], mult
+                    ).bright_black());
+                }
+                _ => {
+                    let msg = format!(
+                        "❌ LOSS → {} | {:.2}x | FDV ${:.0}",
+                        &call.mint[..12], mult, current_fdv
+                    );
+                    println!("{}", msg.bold().red());
+                    alerts.push((call.mint.clone(), format!(
+                        "❌ <b>LOSS</b> {:.2}x\n{}\nFDV now: ${:.0}",
+                        mult, call.mint, current_fdv
+                    )));
+                }
             }
         }
     }
+
+    alerts
 }
