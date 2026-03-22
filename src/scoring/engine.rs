@@ -130,17 +130,50 @@ pub async fn score_and_manage(
             continue;
         }
 
+        // ── LATE ENTRY CHECK (hard gate) ──────────────────────────────
+        if trend.late_entry {
+            skip_velocity += 1;
+            continue; // coin already peaked, don't chase
+        }
+
+        let vel = trend.fdv_velocity_pct; // keep for near-miss logging
+
+        // ── LANE CLASSIFICATION (from psychic-spoon) ──────────────────
+        let lane = if trend.early_snipe {
+            "SNIPE"
+        } else if trend.conviction_momentum {
+            "CONVICTION"
+        } else if trend.buys_1h >= 20 && trend.price_change_1h.abs() > 5.0 {
+            "SNIPE" // slow SNIPE — already moving over 1h
+        } else {
+            "NEWBORN"
+        };
+
         // ── SCORE ─────────────────────────────────────────────────────
         let mut score = 0i32;
 
-        // 1. FDV velocity
-        let vel = trend.fdv_velocity_pct;
-        if vel < -2.0 { skip_velocity += 1; continue; }
-        if vel > 0.0 { score += (vel * 6.0).min(60.0) as i32; }
+        // 1. Primary signal — SNIPE/CONVICTION from psychic-spoon logic
+        if trend.early_snipe {
+            // FDV < $50k + 15%+ growth in 5m = strong early signal
+            score += 40;
+            score += (trend.fdv_growth_5m_pct * 2.0).min(40.0) as i32;
+        } else if trend.conviction_momentum {
+            // $15k+ abs gain = real money in
+            score += 30;
+            score += (trend.fdv_abs_gain_5m / 1000.0).min(30.0) as i32;
+        } else {
+            // Fall back to velocity for other coins
+            let vel = trend.fdv_velocity_pct;
+            if vel < -2.0 { skip_velocity += 1; continue; }
+            if vel > 0.0 { score += (vel * 6.0).min(40.0) as i32; }
+        }
 
         // 2. Buy pressure 5m
         let total_5m = trend.buys_5m + trend.sells_5m;
-        if total_5m < cfg.min_buys_5m as u64 { skip_activity += 1; continue; }
+        if total_5m < cfg.min_buys_5m as u64 {
+            // SNIPE/CONVICTION can pass with less activity
+            if lane == "NEWBORN" { skip_activity += 1; continue; }
+        }
         if bsr >= 1.5 { score += 10; }
         if bsr >= 2.0 { score += 10; }
         if bsr >= 3.0 { score += 10; }
@@ -194,8 +227,7 @@ pub async fn score_and_manage(
             score += good_boost.min(20);
         }
 
-        // 7. SNIPE classification
-        let is_snipe = trend.buys_1h >= 20 && trend.price_change_1h.abs() > 5.0;
+        let is_snipe = lane == "SNIPE" || lane == "CONVICTION";
 
         // 8. Shadow watch for near-misses
         if shadow_should_add(score, cfg, if trend.fdv_accel { 1.0 } else { 0.0 }, 0.0) {
@@ -274,16 +306,16 @@ pub async fn score_and_manage(
             called += 1;
             active.push(mint.clone());
 
-            let coin_type = if is_snipe { "SNIPE" } else { "NEWBORN" };
             println!(
                 "{}",
                 format!(
-                    "🎯 {} → {} | FDV ${} | LIQ ${} | vel {:.1}%/min | 1h {:.0}% | BSR {:.1}x | b5m {} | b1h {} | holders {} | top1 {:.0}% | score {}",
-                    coin_type,
+                    "🎯 {} → {} | FDV ${} | LIQ ${} | 5m {:.0}% (+${:.0}) | 1h {:.0}% | BSR {:.1}x | b5m {} | b1h {} | holders {} | top1 {:.0}% | score {}",
+                    lane,
                     mint.green().bold(),
                     fmt_f64_0_commas(fdv).cyan(),
                     fmt_f64_0_commas(liq).cyan(),
-                    vel,
+                    trend.fdv_growth_5m_pct,
+                    trend.fdv_abs_gain_5m,
                     trend.price_change_1h,
                     bsr,
                     trend.buys_5m,

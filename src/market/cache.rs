@@ -88,6 +88,14 @@ pub struct MarketTrend {
 
     // Snapshot count (how much history we have)
     pub snapshots: usize,
+
+    // SNIPE signals (from psychic-spoon)
+    pub early_snipe: bool,         // FDV < $50k AND 15%+ growth in 5m
+    pub conviction_momentum: bool, // $15k+ abs FDV gain in 5m on mid cap
+    pub fdv_5m_ago: Option<f64>,
+    pub fdv_growth_5m_pct: f64,   // % change vs 5m ago
+    pub fdv_abs_gain_5m: f64,     // $ change vs 5m ago
+    pub late_entry: bool,         // coin peaked 35%+ higher 30m ago — don't chase
 }
 
 pub fn market_trend(cache: &MarketCache, mint: &str, cfg: &Config) -> MarketTrend {
@@ -115,6 +123,51 @@ pub fn market_trend(cache: &MarketCache, mint: &str, cfg: &Config) -> MarketTren
     t.price_change_1h = latest.price_change_1h.unwrap_or(0.0);
     t.price_change_6h = latest.price_change_6h.unwrap_or(0.0);
     t.snapshots = samples.len();
+
+    // ── SNIPE signals (from psychic-spoon) ──────────────────────────
+    // Compare current FDV to ~5 min ago snapshot
+    let now_ts = latest.ts;
+    let fdv_5m_ago = samples.iter()
+        .filter(|s| {
+            let age = now_ts.saturating_sub(s.ts);
+            age >= 240 && age <= 420 // 4-7 min ago window
+        })
+        .filter_map(|s| s.fdv)
+        .next();
+
+    if let Some(fdv_5m) = fdv_5m_ago {
+        if fdv_5m > 0.0 {
+            let fdv_growth_pct = (fdv - fdv_5m) / fdv_5m;
+            let fdv_abs_gain = fdv - fdv_5m;
+
+            // SNIPE: small cap pumping fast
+            t.early_snipe = fdv > 0.0
+                && fdv < 50_000.0
+                && fdv_growth_pct >= 0.15; // 15%+ in 5 min
+
+            // CONVICTION: mid cap with real dollar inflow
+            t.conviction_momentum = fdv >= 30_000.0
+                && fdv <= 500_000.0
+                && fdv_abs_gain >= 15_000.0; // $15k+ absolute gain
+
+            t.fdv_5m_ago = Some(fdv_5m);
+            t.fdv_growth_5m_pct = fdv_growth_pct * 100.0;
+            t.fdv_abs_gain_5m = fdv_abs_gain;
+        }
+    }
+
+    // Late entry check — if coin was 35%+ higher 30 min ago, skip
+    let fdv_30m_ago = samples.iter()
+        .filter(|s| {
+            let age = now_ts.saturating_sub(s.ts);
+            age >= 1500 && age <= 2100 // 25-35 min ago
+        })
+        .filter_map(|s| s.fdv)
+        .reduce(f64::max);
+
+    if let Some(peak_30m) = fdv_30m_ago {
+        t.late_entry = peak_30m > 0.0 && peak_30m >= fdv * 1.35;
+    }
 
     // Buy/sell ratio
     let total_tx = t.buys_5m + t.sells_5m;
