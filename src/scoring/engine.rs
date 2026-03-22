@@ -234,6 +234,11 @@ pub async fn score_and_manage(
         }
 
         // ── CALL ──────────────────────────────────────────────────────
+        // Never call the same mint twice
+        if calls.iter().any(|existing| existing.mint == mint) {
+            continue;
+        }
+
         if c.active {
             // Demotion
             if score < cfg.score_demote {
