@@ -34,9 +34,22 @@ pub struct MarketSample {
     pub price: Option<f64>,
     pub fdv: Option<f64>,
     pub liq: Option<f64>,
+    // 5m
     pub buys_5m: Option<u64>,
     pub sells_5m: Option<u64>,
     pub volume_5m: Option<f64>,
+    // 1h — slow climbers
+    pub buys_1h: Option<u64>,
+    pub sells_1h: Option<u64>,
+    pub volume_1h: Option<f64>,
+    // 6h — multi-hour grinders
+    pub buys_6h: Option<u64>,
+    pub sells_6h: Option<u64>,
+    pub volume_6h: Option<f64>,
+    // Price change %
+    pub price_change_5m: Option<f64>,
+    pub price_change_1h: Option<f64>,
+    pub price_change_6h: Option<f64>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -49,11 +62,20 @@ pub struct MarketTrend {
     pub fdv_velocity_pct: f64,   // positive = pumping
     pub liq_velocity_pct: f64,
 
-    // Activity
+    // Activity — 5m
     pub buys_5m: u64,
     pub sells_5m: u64,
-    pub buy_sell_ratio: f64,     // >1.5 = bullish
+    pub buy_sell_ratio: f64,
     pub volume_5m: f64,
+    // Activity — 1h (slow climbers)
+    pub buys_1h: u64,
+    pub sells_1h: u64,
+    pub bsr_1h: f64,
+    pub volume_1h: f64,
+    // Price change
+    pub price_change_5m: f64,
+    pub price_change_1h: f64,
+    pub price_change_6h: f64,
 
     // Flags
     pub price_accel: bool,
@@ -85,6 +107,13 @@ pub fn market_trend(cache: &MarketCache, mint: &str, cfg: &Config) -> MarketTren
     t.buys_5m = latest.buys_5m.unwrap_or(0);
     t.sells_5m = latest.sells_5m.unwrap_or(0);
     t.volume_5m = latest.volume_5m.unwrap_or(0.0);
+    t.buys_1h = latest.buys_1h.unwrap_or(0);
+    t.sells_1h = latest.sells_1h.unwrap_or(0);
+    t.bsr_1h = if t.sells_1h > 0 { t.buys_1h as f64 / t.sells_1h as f64 } else if t.buys_1h > 0 { 5.0 } else { 1.0 };
+    t.volume_1h = latest.volume_1h.unwrap_or(0.0);
+    t.price_change_5m = latest.price_change_5m.unwrap_or(0.0);
+    t.price_change_1h = latest.price_change_1h.unwrap_or(0.0);
+    t.price_change_6h = latest.price_change_6h.unwrap_or(0.0);
     t.snapshots = samples.len();
 
     // Buy/sell ratio
@@ -158,11 +187,13 @@ struct DexTokenResp {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct DexPairRaw {
+    chain_id: Option<String>,
     price_usd: Option<String>,
     fdv: Option<f64>,
     liquidity: Option<DexLiquidity>,
     txns: Option<DexTxns>,
     volume: Option<DexVolume>,
+    price_change: Option<DexPriceChange>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -173,6 +204,8 @@ struct DexLiquidity {
 #[derive(Debug, Deserialize)]
 struct DexTxns {
     m5: Option<DexTxnBucket>,
+    h1: Option<DexTxnBucket>,
+    h6: Option<DexTxnBucket>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -184,6 +217,15 @@ struct DexTxnBucket {
 #[derive(Debug, Deserialize)]
 struct DexVolume {
     m5: Option<f64>,
+    h1: Option<f64>,
+    h6: Option<f64>,
+}
+
+#[derive(Debug, Deserialize)]
+struct DexPriceChange {
+    m5: Option<f64>,
+    h1: Option<f64>,
+    h6: Option<f64>,
 }
 
 async fn fetch_dex_sample(mint: &str, ts: u64) -> Result<MarketSample, ()> {
@@ -198,15 +240,39 @@ async fn fetch_dex_sample(mint: &str, ts: u64) -> Result<MarketSample, ()> {
     // Prefer Solana pairs
     let pairs = body.pairs.unwrap_or_default();
     let pair = pairs.iter()
-        .find(|_| true) // take first for now — could filter by chainId == "solana"
+        .find(|p| p.chain_id.as_deref() == Some("solana"))
+        .or_else(|| pairs.first())
         .ok_or(())?;
 
     let price = pair.price_usd.as_ref().and_then(|s| s.parse::<f64>().ok());
     let fdv = pair.fdv;
     let liq = pair.liquidity.as_ref().and_then(|l| l.usd);
+
+    // 5m data
     let buys_5m = pair.txns.as_ref().and_then(|t| t.m5.as_ref()).and_then(|m| m.buys);
     let sells_5m = pair.txns.as_ref().and_then(|t| t.m5.as_ref()).and_then(|m| m.sells);
     let volume_5m = pair.volume.as_ref().and_then(|v| v.m5);
 
-    Ok(MarketSample { ts, price, fdv, liq, buys_5m, sells_5m, volume_5m })
+    // 1h data — catches slow climbers
+    let buys_1h = pair.txns.as_ref().and_then(|t| t.h1.as_ref()).and_then(|m| m.buys);
+    let sells_1h = pair.txns.as_ref().and_then(|t| t.h1.as_ref()).and_then(|m| m.sells);
+    let volume_1h = pair.volume.as_ref().and_then(|v| v.h1);
+
+    // 6h data — catches multi-hour grinders
+    let buys_6h = pair.txns.as_ref().and_then(|t| t.h6.as_ref()).and_then(|m| m.buys);
+    let sells_6h = pair.txns.as_ref().and_then(|t| t.h6.as_ref()).and_then(|m| m.sells);
+    let volume_6h = pair.volume.as_ref().and_then(|v| v.h6);
+
+    // Price change % over different windows
+    let price_change_5m = pair.price_change.as_ref().and_then(|pc| pc.m5);
+    let price_change_1h = pair.price_change.as_ref().and_then(|pc| pc.h1);
+    let price_change_6h = pair.price_change.as_ref().and_then(|pc| pc.h6);
+
+    Ok(MarketSample {
+        ts, price, fdv, liq,
+        buys_5m, sells_5m, volume_5m,
+        buys_1h, sells_1h, volume_1h,
+        buys_6h, sells_6h, volume_6h,
+        price_change_5m, price_change_1h, price_change_6h,
+    })
 }

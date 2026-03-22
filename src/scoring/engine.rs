@@ -138,6 +138,26 @@ pub fn score_and_manage(
         // 5. Liquidity growing (not just FDV)
         if trend.liq_velocity_pct > 1.0 { score += 10; }
 
+        // 4b. Slow climber signal — consistent 1h buying pressure
+        // This catches coins doing $200k over 4 hours vs instant pumps
+        if trend.buys_1h >= 50 && trend.bsr_1h >= 1.3 {
+            score += 15;  // sustained buying over an hour
+        }
+        if trend.price_change_1h > 10.0 {
+            score += 10;  // up 10%+ in last hour = real momentum
+        }
+        if trend.price_change_1h > 25.0 {
+            score += 10;  // up 25%+ = strong runner
+        }
+        if trend.volume_1h > 50_000.0 {
+            score += 8;   // real volume over the hour
+        }
+
+        // Classify: SNIPE (already moving) vs NEWBORN (brand new)
+        // SNIPE = has 1h history, NEWBORN = only 5m data
+        let is_snipe = trend.buys_1h >= 20 && trend.price_change_1h.abs() > 5.0;
+        let _coin_type = if is_snipe { "SNIPE" } else { "NEWBORN" };
+
         // 5b. Real buy signal from Helius — 0.5+ SOL buys = real money, not bots
         let whales_now = crate::scoring::window::window_whales(&c.events, cfg.window_secs);
         let beluga_count = c.events.iter()
@@ -244,16 +264,20 @@ pub fn score_and_manage(
             let whales_involved = window_whales(&c.events, cfg.window_secs);
             let wallets_involved = window_wallets(&c.events, cfg.window_secs);
 
+            let coin_type = if is_snipe { "SNIPE" } else { "NEWBORN" };
             println!(
                 "{}",
                 format!(
-                    "🎯 CALL → {} | FDV ${} | LIQ ${} | vel {:.1}%/min | BSR {:.1}x | buys {} | score {}",
+                    "🎯 {} → {} | FDV ${} | LIQ ${} | vel {:.1}%/min | 1h +{:.0}% | BSR {:.1}x | buys5m {} | buys1h {} | score {}",
+                    coin_type,
                     mint.green().bold(),
                     fmt_f64_0_commas(fdv).cyan(),
                     fmt_f64_0_commas(liq).cyan(),
                     vel,
+                    trend.price_change_1h,
                     bsr,
                     trend.buys_5m,
+                    trend.buys_1h,
                     score.to_string().yellow().bold(),
                 )
                 .bold()
