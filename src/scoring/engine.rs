@@ -103,12 +103,18 @@ pub fn score_and_manage(
             score += (vel * 6.0).min(60.0) as i32;
         }
 
-        // 2. Buy/sell ratio — only meaningful with real volume
-        let bsr = if trend.buys_5m + trend.sells_5m >= 5 {
+        // 2. Buy/sell ratio — must be bullish, only with real volume
+        let total_tx = trend.buys_5m + trend.sells_5m;
+        let bsr = if total_tx >= 5 {
             trend.buy_sell_ratio
         } else {
-            1.0 // not enough txs to trust the ratio
+            1.0
         };
+        // Hard gate: more sells than buys = skip
+        if bsr < 1.0 && total_tx >= 5 {
+            skip_activity += 1;
+            continue;
+        }
         if bsr >= 1.5 { score += 10; }
         if bsr >= 2.0 { score += 10; }
         if bsr >= 3.0 { score += 10; }
@@ -121,9 +127,13 @@ pub fn score_and_manage(
         if trend.buys_5m >= 25 { score += 10; }
         if trend.buys_5m >= 50 { score += 15; }
 
-        // 4. Liquidity health
-        if liq >= 5_000.0 { score += 5; }
-        if liq >= 15_000.0 { score += 5; }
+        // 4. Liquidity — hard gate, no liq = not tradeable
+        if liq < 3_000.0 {
+            skip_activity += 1;
+            continue; // can't trade it if there's no liquidity
+        }
+        if liq >= 10_000.0 { score += 5; }
+        if liq >= 30_000.0 { score += 10; }
 
         // 5. Liquidity growing (not just FDV)
         if trend.liq_velocity_pct > 1.0 { score += 10; }
