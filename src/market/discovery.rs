@@ -26,6 +26,20 @@ impl MarketDiscovery {
         let mut picked: Vec<(String, u64)> = vec![];
         let mut seen: HashSet<String> = HashSet::new();
 
+        // SEED: manually added mints from user
+        let seed_path = "data/seed_mints.json";
+        if let Ok(s) = std::fs::read_to_string(seed_path) {
+            if let Ok(seeds) = serde_json::from_str::<Vec<String>>(&s) {
+                for mint in seeds {
+                    if seen.insert(mint.clone()) {
+                        picked.push((mint, 9999)); // top priority
+                    }
+                }
+            }
+            // Clear after loading so we don't re-add forever
+            let _ = std::fs::write(seed_path, "[]");
+        }
+
         // PRIMARY: DexScreener latest token profiles — brand new coins
         if let Ok(resp) = reqwest::get("https://api.dexscreener.com/token-profiles/latest/v1").await {
             if let Ok(tokens) = resp.json::<Vec<serde_json::Value>>().await {
