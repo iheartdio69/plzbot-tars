@@ -158,15 +158,25 @@ pub fn market_trend(cache: &MarketCache, mint: &str, cfg: &Config) -> MarketTren
 
 impl MarketCache {
     pub async fn poll(&mut self, cfg: &Config, mints: &[String]) {
-        if self.last_poll.elapsed().as_secs() < cfg.market_poll_secs {
-            return;
-        }
-        self.last_poll = Instant::now();
-
-        let max_per_cycle = 50usize;
+        // Always poll — caller decides frequency
         let now = now_ts();
+        let max_per_cycle = 50usize;
 
         for mint in mints.iter().take(max_per_cycle) {
+            if let Ok(sample) = fetch_dex_sample(mint, now).await {
+                let history = self.map.entry(mint.clone()).or_insert_with(Vec::new);
+                history.push(sample);
+                if history.len() > MAX_SNAPSHOTS {
+                    history.remove(0);
+                }
+            }
+        }
+    }
+
+    pub async fn poll_active(&mut self, active_mints: &[String]) {
+        // Hammer active coins as fast as possible — no throttle
+        let now = now_ts();
+        for mint in active_mints {
             if let Ok(sample) = fetch_dex_sample(mint, now).await {
                 let history = self.map.entry(mint.clone()).or_insert_with(Vec::new);
                 history.push(sample);

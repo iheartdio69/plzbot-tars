@@ -1,4 +1,5 @@
 use crate::config::Config;
+use std::time::Instant;
 use crate::helius::websocket::{subscribe_pump_fun, NewMintsSink};
 use crate::market::cache::MarketCache;
 use crate::market::discovery::{merge_discovered, MarketDiscovery};
@@ -77,8 +78,17 @@ pub async fn run(cfg: Config) {
             }
         }
 
-        let mint_list: Vec<String> = coins.keys().cloned().collect();
-        market.poll(&cfg, &mint_list).await;
+        // Poll active coins every single tick — as fast as possible
+        if !active.is_empty() {
+            market.poll_active(&active).await;
+        }
+
+        // Poll all other coins on normal cadence
+        if market.last_poll.elapsed().as_secs() >= cfg.market_poll_secs {
+            market.last_poll = Instant::now();
+            let mint_list: Vec<String> = coins.keys().cloned().collect();
+            market.poll(&cfg, &mint_list).await;
+        }
         fetch_onchain_events(&cfg, &mut coins).await;
         let prev_call_count = calls.len();
         score_and_manage(
