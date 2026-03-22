@@ -102,22 +102,45 @@ pub async fn run(cfg: Config) {
             &mut missed_tracker,
         ).await;
 
-        // Send Telegram alert for any new calls
-        if calls.len() > prev_call_count && !cfg.telegram_bot_token.is_empty() {
+        // When a new call is made — remove from active (graduated) + open slot + alert
+        if calls.len() > prev_call_count {
             for call in &calls[prev_call_count..] {
-                crate::telegram::send_message(
-                    &cfg.telegram_bot_token,
-                    &cfg.telegram_chat_id,
-                    &call.mint,
-                ).await;
-                crate::telegram::send_message(
-                    &cfg.telegram_bot_token,
-                    &cfg.telegram_chat_id,
-                    &format!(
-                        "🎯 <b>CALL</b>\nScore: {}\nDexscreener: https://dexscreener.com/solana/{}",
-                        call.score, call.mint
-                    ),
-                ).await;
+                // Graduate: remove from active list so the slot opens up
+                active.retain(|m| m != &call.mint);
+                if let Some(c) = coins.get_mut(&call.mint) {
+                    c.active = false; // no longer competing for active slots
+                }
+
+                // Promote next from queue into active
+                while active.len() < cfg.max_active_coins {
+                    if let Some(next) = queue.pop_front() {
+                        if !active.contains(&next) {
+                            if let Some(nc) = coins.get_mut(&next) {
+                                nc.active = true;
+                                active.push(next.clone());
+                            }
+                        }
+                    } else {
+                        break;
+                    }
+                }
+
+                // Telegram alert
+                if !cfg.telegram_bot_token.is_empty() {
+                    crate::telegram::send_message(
+                        &cfg.telegram_bot_token,
+                        &cfg.telegram_chat_id,
+                        &call.mint,
+                    ).await;
+                    crate::telegram::send_message(
+                        &cfg.telegram_bot_token,
+                        &cfg.telegram_chat_id,
+                        &format!(
+                            "🎯 <b>CALL</b> score={}\nhttps://dexscreener.com/solana/{}",
+                            call.score, call.mint
+                        ),
+                    ).await;
+                }
             }
         }
 
