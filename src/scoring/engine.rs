@@ -1,23 +1,45 @@
 use crate::config::Config;
+use crate::fmt::fmt_f64_0_commas;
 use crate::market::cache::{market_trend, MarketCache};
 use crate::missed_calls::MissedCallTracker;
 use crate::reputation::{RUG_WALLETS, WALLET_REPUTATION};
+use crate::rugcheck::{fetch_rug_report, RugReport};
 use crate::scoring::shadow::{shadow_should_add, shadow_touch, ShadowMap};
 use crate::scoring::window::{prune_window, window_wallets, window_whales};
 use crate::time::now_ts;
-use crate::fmt::fmt_f64_0_commas;
-use crate::types::{CallRecord, CoinState};
+use crate::types::{CallRecord, CoinState, WhaleTier};
 
 use colored::*;
 use std::collections::{HashMap, VecDeque};
 use std::time::Instant;
 
-fn is_bonk_like(s: &str) -> bool {
-    let x = s.to_lowercase();
-    x.contains("bonk") || x.ends_with("bonk")
+// Cache rugcheck results so we don't hammer the API
+lazy_static::lazy_static! {
+    static ref RUG_CACHE: std::sync::Mutex<HashMap<String, (RugReport, u64)>> =
+        std::sync::Mutex::new(HashMap::new());
 }
 
-pub fn score_and_manage(
+const RUG_CACHE_TTL: u64 = 300; // re-fetch every 5 min
+
+async fn get_rug_report(mint: &str) -> RugReport {
+    let now = now_ts();
+    {
+        let cache = RUG_CACHE.lock().unwrap();
+        if let Some((report, ts)) = cache.get(mint) {
+            if now - ts < RUG_CACHE_TTL {
+                return report.clone();
+            }
+        }
+    }
+    let report = fetch_rug_report(mint).await;
+    {
+        let mut cache = RUG_CACHE.lock().unwrap();
+        cache.insert(mint.to_string(), (report.clone(), now));
+    }
+    report
+}
+
+pub async fn score_and_manage(
     cfg: &Config,
     coins: &mut HashMap<String, CoinState>,
     active: &mut Vec<String>,
@@ -35,14 +57,16 @@ pub fn score_and_manage(
     let mut skip_no_market = 0u64;
     let mut skip_fdv_band = 0u64;
     let mut skip_velocity = 0u64;
-    let mut skip_activity = 0u64;
+    let mut skip_liq = 0u64;
+    let mut skip_bsr = 0u64;
     let mut skip_rug = 0u64;
+    let mut skip_activity = 0u64;
     let mut skip_active_full = 0u64;
 
     for mint in mints {
         scanned += 1;
 
-        if cfg.avoid_bonk && is_bonk_like(&mint) {
+        if cfg.avoid_bonk && (mint.to_lowercase().contains("bonk")) {
             skip_bonk += 1;
             continue;
         }
@@ -51,7 +75,6 @@ pub fn score_and_manage(
 
         prune_window(&mut c.events, cfg.events_keep_secs);
 
-        // Snapshot throttle
         if !c.first_snapshot_done {
             c.first_snapshot_done = true;
         } else if c.last_snapshot.elapsed().as_secs() < cfg.snapshot_interval_secs {
@@ -65,7 +88,6 @@ pub fn score_and_manage(
             continue;
         }
 
-        // ── MARKET DATA ──────────────────────────────────────────────
         let trend = market_trend(market, &mint, cfg);
         let fdv = match trend.last_fdv {
             Some(f) if f > 0.0 => f,
@@ -73,7 +95,7 @@ pub fn score_and_manage(
         };
         let liq = trend.last_liq.unwrap_or(0.0);
 
-        // Track this coin for missed call analysis
+        // Track for missed call analysis
         let was_called = calls.iter().any(|c| c.mint == mint);
         missed.update(&mint, fdv, trend.buys_5m, trend.fdv_velocity_pct, trend.buy_sell_ratio, cfg, was_called);
 
@@ -89,149 +111,131 @@ pub fn score_and_manage(
             continue;
         }
 
-        // ── SCORE CALCULATION ────────────────────────────────────────
+        // Liquidity hard gate
+        if liq < 3_000.0 {
+            skip_liq += 1;
+            continue;
+        }
+
+        // BSR hard gate — no net selling
+        let total_tx = trend.buys_5m + trend.sells_5m;
+        let bsr = if total_tx >= 5 { trend.buy_sell_ratio } else { 1.0 };
+        if bsr < 1.0 && total_tx >= 5 {
+            skip_bsr += 1;
+            continue;
+        }
+
+        // ── SCORE ─────────────────────────────────────────────────────
         let mut score = 0i32;
 
-        // 1. FDV velocity (primary signal) — % per minute
+        // 1. FDV velocity
         let vel = trend.fdv_velocity_pct;
-        if vel < -2.0 {
-            // Actively dumping — skip
-            skip_velocity += 1;
-            continue;
-        }
-        if vel > 0.0 {
-            score += (vel * 6.0).min(60.0) as i32;
-        }
+        if vel < -2.0 { skip_velocity += 1; continue; }
+        if vel > 0.0 { score += (vel * 6.0).min(60.0) as i32; }
 
-        // 2. Buy/sell ratio — must be bullish, only with real volume
-        let total_tx = trend.buys_5m + trend.sells_5m;
-        let bsr = if total_tx >= 5 {
-            trend.buy_sell_ratio
-        } else {
-            1.0
-        };
-        // Hard gate: more sells than buys = skip
-        if bsr < 1.0 && total_tx >= 5 {
-            skip_activity += 1;
-            continue;
-        }
+        // 2. Buy pressure 5m
+        let total_5m = trend.buys_5m + trend.sells_5m;
+        if total_5m < cfg.min_buys_5m as u64 { skip_activity += 1; continue; }
         if bsr >= 1.5 { score += 10; }
         if bsr >= 2.0 { score += 10; }
         if bsr >= 3.0 { score += 10; }
-
-        // 3. Raw buy count in 5m — need real buys, not 1
-        if trend.buys_5m < cfg.min_buys_5m {
-            skip_activity += 1;
-            continue; // hard gate — must have real activity
-        }
         if trend.buys_5m >= 25 { score += 10; }
         if trend.buys_5m >= 50 { score += 15; }
 
-        // 4. Liquidity — hard gate, no liq = not tradeable
-        if liq < 3_000.0 {
-            skip_activity += 1;
-            continue; // can't trade it if there's no liquidity
-        }
+        // 3. Slow climber — 1h signals
+        if trend.buys_1h >= 50 && trend.bsr_1h >= 1.3 { score += 15; }
+        if trend.price_change_1h > 10.0 { score += 10; }
+        if trend.price_change_1h > 25.0 { score += 10; }
+        if trend.volume_1h > 50_000.0 { score += 8; }
+
+        // 4. Liquidity quality
         if liq >= 10_000.0 { score += 5; }
         if liq >= 30_000.0 { score += 10; }
-
-        // 5. Liquidity growing (not just FDV)
         if trend.liq_velocity_pct > 1.0 { score += 10; }
 
-        // 4b. Slow climber signal — consistent 1h buying pressure
-        // This catches coins doing $200k over 4 hours vs instant pumps
-        if trend.buys_1h >= 50 && trend.bsr_1h >= 1.3 {
-            score += 15;  // sustained buying over an hour
-        }
-        if trend.price_change_1h > 10.0 {
-            score += 10;  // up 10%+ in last hour = real momentum
-        }
-        if trend.price_change_1h > 25.0 {
-            score += 10;  // up 25%+ = strong runner
-        }
-        if trend.volume_1h > 50_000.0 {
-            score += 8;   // real volume over the hour
-        }
-
-        // Classify: SNIPE (already moving) vs NEWBORN (brand new)
-        // SNIPE = has 1h history, NEWBORN = only 5m data
-        let is_snipe = trend.buys_1h >= 20 && trend.price_change_1h.abs() > 5.0;
-        let _coin_type = if is_snipe { "SNIPE" } else { "NEWBORN" };
-
-        // 5b. Real buy signal from Helius — 0.5+ SOL buys = real money, not bots
-        let whales_now = crate::scoring::window::window_whales(&c.events, cfg.window_secs);
+        // 5. Real buy size from Helius (0.5+ SOL = real human)
+        let recent_ts = now_ts();
         let beluga_count = c.events.iter()
-            .filter(|e| crate::time::now_ts().saturating_sub(e.ts) < cfg.window_secs)
-            .filter(|e| e.tier == crate::types::WhaleTier::Beluga || e.tier == crate::types::WhaleTier::Blue)
+            .filter(|e| recent_ts.saturating_sub(e.ts) < cfg.window_secs)
+            .filter(|e| e.tier == WhaleTier::Beluga || e.tier == WhaleTier::Blue)
             .count();
         let blue_count = c.events.iter()
-            .filter(|e| crate::time::now_ts().saturating_sub(e.ts) < cfg.window_secs)
-            .filter(|e| e.tier == crate::types::WhaleTier::Blue)
+            .filter(|e| recent_ts.saturating_sub(e.ts) < cfg.window_secs)
+            .filter(|e| e.tier == WhaleTier::Blue)
             .count();
-
-        // Real buys boost score significantly
-        score += (beluga_count as i32) * 8;  // each 0.5+ SOL buy = +8
-        score += (blue_count as i32) * 15;   // each 3+ SOL buy = +15
-
-        if beluga_count > 0 {
-            // Log it — real money is coming in
-        }
+        score += (beluga_count as i32) * 8;
+        score += (blue_count as i32) * 15;
 
         // 6. Wallet reputation modifier
         let wallets = window_wallets(&c.events, cfg.window_secs);
         if !wallets.is_empty() {
             let rep_lock = WALLET_REPUTATION.lock().unwrap();
             let rug_lock = RUG_WALLETS.lock().unwrap();
-
             let mut bad_count = 0usize;
             let mut good_boost = 0i32;
-
             for w in &wallets {
-                if rug_lock.contains(w) {
-                    bad_count += 1;
-                } else if let Some(rep) = rep_lock.get(w) {
+                if rug_lock.contains(w) { bad_count += 1; }
+                else if let Some(rep) = rep_lock.get(w) {
                     if *rep > 10.0 { good_boost += 8; }
                     else if *rep > 5.0 { good_boost += 4; }
                     else if *rep < -5.0 { bad_count += 1; }
                 }
             }
-
-            // Hard rug gate: >20% bad wallets = skip
             let bad_ratio = bad_count as f64 / wallets.len() as f64;
             if bad_ratio > 0.20 {
-                println!("{}", format!("🚩 RUG RISK {} bad_ratio={:.0}%", &mint[..8], bad_ratio * 100.0).red());
                 skip_rug += 1;
                 continue;
             }
-
-            score += good_boost.min(20); // cap rep boost at 20pts
+            score += good_boost.min(20);
         }
 
-        // Shadow watch for near-misses
+        // 7. SNIPE classification
+        let is_snipe = trend.buys_1h >= 20 && trend.price_change_1h.abs() > 5.0;
+
+        // 8. Shadow watch for near-misses
         if shadow_should_add(score, cfg, if trend.fdv_accel { 1.0 } else { 0.0 }, 0.0) {
             shadow_touch(shadow, &mint, cfg, score);
         }
 
-        // ── CALL GATE ────────────────────────────────────────────────
-        if score < cfg.score_target {
-            skip_activity += 1;
-
-            // Log near-misses so we can see what's close
-            if score >= cfg.score_target - 20 {
-                println!(
-                    "{}",
-                    format!(
-                        "👀 WATCH {} | FDV ${} | vel {:.1}%/min | BSR {:.1}x | buys {} | score {}",
-                        &mint[..8], fmt_f64_0_commas(fdv), vel, bsr, trend.buys_5m, score
-                    ).bright_black()
-                );
-            }
+        // Near-miss log
+        if score >= cfg.score_target - 20 && score < cfg.score_target {
+            println!(
+                "{}",
+                format!(
+                    "👀 WATCH {} | FDV ${} | vel {:.1}%/min | BSR {:.1}x | buys {} | score {}",
+                    &mint[..8], fmt_f64_0_commas(fdv), vel, bsr, trend.buys_5m, score
+                ).bright_black()
+            );
             continue;
         }
 
-        // ── MAKE THE CALL ────────────────────────────────────────────
+        if score < cfg.score_target {
+            skip_activity += 1;
+            continue;
+        }
+
+        // ── RUGCHECK (only run on coins that pass score) ──────────────
+        let rug = get_rug_report(&mint).await;
+        if rug.fetched {
+            if !rug.is_safe() {
+                println!(
+                    "{}",
+                    format!(
+                        "🚫 RUG BLOCKED {} | score={} holders={} top1={:.0}% mint_revoked={} risks={:?}",
+                        &mint[..12], rug.score, rug.total_holders,
+                        rug.top_holder_pct, rug.mint_authority_revoked,
+                        rug.risks.iter().take(2).collect::<Vec<_>>()
+                    ).red().bold()
+                );
+                skip_rug += 1;
+                continue;
+            }
+            score += rug.score_modifier();
+        }
+
+        // ── CALL ──────────────────────────────────────────────────────
         if c.active {
-            // Already called, update demotion streak
+            // Demotion
             if score < cfg.score_demote {
                 c.low_score_streak = c.low_score_streak.saturating_add(1);
             } else {
@@ -247,7 +251,6 @@ pub fn score_and_manage(
                         if let Some(nc) = coins.get_mut(&next) {
                             nc.active = true;
                             active.push(next.clone());
-                            println!("{}", format!("🧠 PROMOTE → {}", &next[..12]).green());
                             break;
                         }
                     }
@@ -261,14 +264,11 @@ pub fn score_and_manage(
             called += 1;
             active.push(mint.clone());
 
-            let whales_involved = window_whales(&c.events, cfg.window_secs);
-            let wallets_involved = window_wallets(&c.events, cfg.window_secs);
-
             let coin_type = if is_snipe { "SNIPE" } else { "NEWBORN" };
             println!(
                 "{}",
                 format!(
-                    "🎯 {} → {} | FDV ${} | LIQ ${} | vel {:.1}%/min | 1h +{:.0}% | BSR {:.1}x | buys5m {} | buys1h {} | score {}",
+                    "🎯 {} → {} | FDV ${} | LIQ ${} | vel {:.1}%/min | 1h {:.0}% | BSR {:.1}x | b5m {} | b1h {} | holders {} | top1 {:.0}% | score {}",
                     coin_type,
                     mint.green().bold(),
                     fmt_f64_0_commas(fdv).cyan(),
@@ -278,11 +278,14 @@ pub fn score_and_manage(
                     bsr,
                     trend.buys_5m,
                     trend.buys_1h,
+                    rug.total_holders,
+                    rug.top_holder_pct,
                     score.to_string().yellow().bold(),
-                )
-                .bold()
-                .green()
+                ).bold().green()
             );
+
+            let wallets_involved = window_wallets(&c.events, cfg.window_secs);
+            let whales_involved = window_whales(&c.events, cfg.window_secs);
 
             calls.push(CallRecord {
                 mint: mint.clone(),
@@ -304,9 +307,9 @@ pub fn score_and_manage(
     println!(
         "{}",
         format!(
-            "DBG scanned={} called={} skip(bonk={} age={} nodata={} fdv={} vel={} activity={} rug={} full={})",
+            "DBG scanned={} called={} skip(bonk={} age={} nodata={} fdv={} vel={} liq={} bsr={} rug={} activity={} full={})",
             scanned, called, skip_bonk, skip_age, skip_no_market,
-            skip_fdv_band, skip_velocity, skip_activity, skip_rug, skip_active_full
+            skip_fdv_band, skip_velocity, skip_liq, skip_bsr, skip_rug, skip_activity, skip_active_full
         ).bright_black()
     );
 }

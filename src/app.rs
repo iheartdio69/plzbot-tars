@@ -100,7 +100,7 @@ pub async fn run(cfg: Config) {
             &market,
             &mut shadow,
             &mut missed_tracker,
-        );
+        ).await;
 
         // Send Telegram alert for any new calls
         if calls.len() > prev_call_count && !cfg.telegram_bot_token.is_empty() {

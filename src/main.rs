@@ -9,6 +9,7 @@ mod missed_calls;
 mod reputation;
 mod resolver;
 mod rug_tracker;
+mod rugcheck;
 mod scoring;
 mod telegram;
 mod time;
