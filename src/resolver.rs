@@ -62,11 +62,11 @@ pub fn resolve_calls(
         // INSTANT WIN — 2x+ at any point
         let is_win = mult >= 2.0;
 
-        // STRONG WIN — 1.5x+ after 30+ mins
-        let is_strong = mult >= 1.5 && elapsed >= cfg.resolve_t5_secs;
+        // STRONG WIN — 2x+ after 30min
+        let is_strong = mult >= 2.0 && elapsed >= cfg.resolve_t5_secs;
 
-        // RUNNER DETECTED — fast velocity, call it early
-        let is_runner_win = mult >= 1.3 && vel > 5.0 && elapsed >= 600;
+        // Runner detection removed — let winners ride
+        let is_runner_win = false; // don't exit early, ride to max
 
         // DEATH SIGNALS — resolve as loss
         let liq_dead = liq < 1_000.0 && elapsed >= 600; // liquidity pulled
@@ -75,7 +75,7 @@ pub fn resolve_calls(
         let slow_bleed = elapsed >= 3600 && mult < 0.85; // been an hour, down 15%+
 
         // GRINDER STILL ALIVE — don't resolve yet, keep watching
-        let grinder_alive = mult >= 0.90 && bsr >= 1.0 && liq >= 3_000.0 && elapsed < 14400; // up to 4hrs
+        let grinder_alive = mult >= 0.90 && bsr >= 1.0 && liq >= 3_000.0 && elapsed < 43200; // up to 4hrs
 
         let should_resolve = is_win || is_strong || is_runner_win
             || liq_dead || price_tanking || stale_and_dead || slow_bleed;
