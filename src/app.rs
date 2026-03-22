@@ -83,8 +83,11 @@ pub async fn run(cfg: Config) {
             market.poll_active(&active).await;
         }
 
-        // Prune stale coins — keep pool tight so we can actually get data for everything
-        coins.retain(|_, c| c.active || c.first_seen.elapsed().as_secs() < 600);
+        // Prune stale coins — active coins ride 2 hours, inactive cleared after 10 min
+        coins.retain(|_, c| {
+            if c.active { c.first_seen.elapsed().as_secs() < 7200 } // 2hr for active
+            else { c.first_seen.elapsed().as_secs() < 600 }          // 10min for inactive
+        });
         active.retain(|m| coins.contains_key(m));
 
         // Poll all other coins on normal cadence — newest first

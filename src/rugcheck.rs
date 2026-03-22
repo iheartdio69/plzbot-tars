@@ -9,20 +9,23 @@ const RUGCHECK_API: &str = "https://api.rugcheck.xyz/v1/tokens";
 
 #[derive(Debug, Clone, Default)]
 pub struct RugReport {
-    pub score: u64,                    // lower = safer. >1000 = danger
-    pub mint_authority_revoked: bool,  // true = safe (can't mint more)
-    pub freeze_authority_revoked: bool,// true = safe (can't freeze wallets)
-    pub top5_holder_pct: f64,          // % held by top 5 wallets
-    pub top_holder_pct: f64,           // % held by single largest wallet
-    pub total_holders: u64,            // total unique holders
-    pub creator_pct: f64,              // % the creator/dev still holds
-    pub is_rugged: bool,               // already rugged flag
-    pub risk_count: usize,             // number of risk flags
-    pub high_risk_count: usize,        // number of HIGH severity risks
-    pub has_insider_network: bool,     // coordinated wallet network detected
-    pub lp_providers: u64,             // number of LP providers
-    pub risks: Vec<String>,            // human readable risk list
-    pub fetched: bool,                 // did we get data?
+    pub score: u64,
+    pub mint_authority_revoked: bool,
+    pub freeze_authority_revoked: bool,
+    pub top5_holder_pct: f64,
+    pub top_holder_pct: f64,
+    pub total_holders: u64,
+    pub creator_pct: f64,
+    pub is_rugged: bool,
+    pub risk_count: usize,
+    pub high_risk_count: usize,
+    pub has_insider_network: bool,
+    pub lp_providers: u64,
+    pub risks: Vec<String>,
+    pub fetched: bool,
+    pub dev_launches: u64,    // total coins dev has launched
+    pub dev_migrated: u64,    // how many bonded/graduated — KEY signal
+    pub has_bonded_market: bool, // coin itself is on Raydium/Meteora = already bonded
 }
 
 impl RugReport {
@@ -62,6 +65,17 @@ impl RugReport {
         if self.creator_pct > 20.0 { modifier -= 20; }
         if self.score > 1000 { modifier -= 20; }
 
+        // Dev previously bonded coins — proven they can run it up
+        if self.dev_migrated >= 1 { modifier += 15; }
+        if self.dev_migrated >= 3 { modifier += 15; }
+        if self.dev_migrated >= 10 { modifier += 10; }
+
+        // Serial launcher who never bonds = rugger
+        if self.dev_launches > 30 && self.dev_migrated == 0 { modifier -= 25; }
+
+        // Coin itself already bonded to Raydium/Meteora = proven project
+        if self.has_bonded_market { modifier += 20; }
+
         modifier
     }
 }
@@ -80,6 +94,7 @@ struct RawReport {
     risks: Option<Vec<RiskEntry>>,
     #[serde(rename = "graphInsidersDetected")]
     graph_insiders_detected: Option<bool>,
+    markets: Option<Vec<serde_json::Value>>,
     creator: Option<String>,
     #[serde(rename = "creatorBalance")]
     creator_balance: Option<u64>,
@@ -150,8 +165,18 @@ pub async fn fetch_rug_report(mint: &str) -> RugReport {
         .filter(|r| r.level.as_deref() == Some("danger"))
         .count();
 
+    let has_bonded_market = raw.markets.as_ref().map(|markets| {
+        markets.iter().any(|m| {
+            let mt = m.get("marketType").and_then(|v| v.as_str()).unwrap_or("");
+            mt.contains("raydium") || mt.contains("meteora") || mt.contains("orca")
+        })
+    }).unwrap_or(false);
+
     RugReport {
         score: raw.score.unwrap_or(0),
+        has_bonded_market,
+        dev_launches: 0,
+        dev_migrated: 0,
         mint_authority_revoked: mint_revoked,
         freeze_authority_revoked: freeze_revoked,
         top5_holder_pct: top5_pct,
