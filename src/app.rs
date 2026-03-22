@@ -83,10 +83,20 @@ pub async fn run(cfg: Config) {
             market.poll_active(&active).await;
         }
 
-        // Poll all other coins on normal cadence
+        // Prune stale coins — keep pool tight so we can actually get data for everything
+        coins.retain(|_, c| c.active || c.first_seen.elapsed().as_secs() < 600);
+        active.retain(|m| coins.contains_key(m));
+
+        // Poll all other coins on normal cadence — newest first
         if market.last_poll.elapsed().as_secs() >= cfg.market_poll_secs {
             market.last_poll = Instant::now();
-            let mint_list: Vec<String> = coins.keys().cloned().collect();
+            let mut mint_list: Vec<String> = coins.keys().cloned().collect();
+            // Sort newest first so fresh coins get data priority
+            mint_list.sort_by(|a, b| {
+                let age_a = coins.get(a).map(|c| c.first_seen.elapsed().as_secs()).unwrap_or(9999);
+                let age_b = coins.get(b).map(|c| c.first_seen.elapsed().as_secs()).unwrap_or(9999);
+                age_a.cmp(&age_b)
+            });
             market.poll(&cfg, &mint_list).await;
         }
         fetch_onchain_events(&cfg, &mut coins).await;

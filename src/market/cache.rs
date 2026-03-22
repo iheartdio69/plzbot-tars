@@ -213,7 +213,7 @@ impl MarketCache {
     pub async fn poll(&mut self, cfg: &Config, mints: &[String]) {
         // Always poll — caller decides frequency
         let now = now_ts();
-        let max_per_cycle = 50usize;
+        let max_per_cycle = 100usize;
 
         for mint in mints.iter().take(max_per_cycle) {
             if let Ok(sample) = fetch_dex_sample(mint, now).await {
