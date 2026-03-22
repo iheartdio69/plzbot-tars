@@ -138,6 +138,25 @@ pub fn score_and_manage(
         // 5. Liquidity growing (not just FDV)
         if trend.liq_velocity_pct > 1.0 { score += 10; }
 
+        // 5b. Real buy signal from Helius — 0.5+ SOL buys = real money, not bots
+        let whales_now = crate::scoring::window::window_whales(&c.events, cfg.window_secs);
+        let beluga_count = c.events.iter()
+            .filter(|e| crate::time::now_ts().saturating_sub(e.ts) < cfg.window_secs)
+            .filter(|e| e.tier == crate::types::WhaleTier::Beluga || e.tier == crate::types::WhaleTier::Blue)
+            .count();
+        let blue_count = c.events.iter()
+            .filter(|e| crate::time::now_ts().saturating_sub(e.ts) < cfg.window_secs)
+            .filter(|e| e.tier == crate::types::WhaleTier::Blue)
+            .count();
+
+        // Real buys boost score significantly
+        score += (beluga_count as i32) * 8;  // each 0.5+ SOL buy = +8
+        score += (blue_count as i32) * 15;   // each 3+ SOL buy = +15
+
+        if beluga_count > 0 {
+            // Log it — real money is coming in
+        }
+
         // 6. Wallet reputation modifier
         let wallets = window_wallets(&c.events, cfg.window_secs);
         if !wallets.is_empty() {

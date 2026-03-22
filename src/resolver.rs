@@ -54,8 +54,10 @@ pub fn resolve_calls(
                 "WIN"
             } else if mult >= 1.3 {
                 "MID"
+            } else if mult <= 0.70 {
+                "LOSS" // -30% SL triggered
             } else {
-                "LOSS"
+                "LOSS" // general loss
             };
 
             call.outcome = Some(outcome.to_string());
