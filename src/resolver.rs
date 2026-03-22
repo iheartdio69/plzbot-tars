@@ -126,10 +126,7 @@ pub fn resolve_calls(
                     "✅ WIN → {} | {:.2}x | {} | {}min",
                     &call.mint[..12], mult, reason, elapsed_mins
                 ).bold().bright_green());
-                alerts.push((call.mint.clone(), format!(
-                    "✅ <b>WIN {:.2}x</b> ({})\n{}\n<a href=\"https://dexscreener.com/solana/{}\">Chart</a>",
-                    mult, reason, call.mint, call.mint
-                )));
+                alerts.push((call.mint.clone(), format!("WIN|{:.2}|{}", mult, reason)));
                 record_win(rug_tracker, &call.wallets_involved);
             }
             "MID" => {
@@ -142,10 +139,7 @@ pub fn resolve_calls(
                     "❌ LOSS → {} | {:.2}x | {} | {}min",
                     &call.mint[..12], mult, reason, elapsed_mins
                 ).bold().red());
-                alerts.push((call.mint.clone(), format!(
-                    "❌ <b>LOSS {:.2}x</b> ({})\n{}",
-                    mult, reason, call.mint
-                )));
+                alerts.push((call.mint.clone(), format!("LOSS|{:.2}|{}", mult, reason)));
                 record_loss(rug_tracker, &call.wallets_involved);
             }
         }

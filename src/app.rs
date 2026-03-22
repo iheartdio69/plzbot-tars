@@ -125,20 +125,21 @@ pub async fn run(cfg: Config) {
                     }
                 }
 
-                // Telegram alert
+                // Telegram alert with copy button
                 if !cfg.telegram_bot_token.is_empty() {
-                    crate::telegram::send_message(
+                    let trend = crate::market::cache::market_trend(&market, &call.mint, &cfg);
+                    crate::telegram::send_call_alert(
                         &cfg.telegram_bot_token,
                         &cfg.telegram_chat_id,
-                        &call.mint,
-                    ).await;
-                    crate::telegram::send_message(
-                        &cfg.telegram_bot_token,
-                        &cfg.telegram_chat_id,
-                        &format!(
-                            "🎯 <b>CALL</b> score={}\nhttps://dexscreener.com/solana/{}",
-                            call.score, call.mint
-                        ),
+                        call,
+                        "CALL",
+                        trend.last_fdv.unwrap_or(0.0),
+                        trend.last_liq.unwrap_or(0.0),
+                        trend.fdv_velocity_pct,
+                        trend.buy_sell_ratio,
+                        trend.price_change_1h,
+                        0,
+                        call.score,
                     ).await;
                 }
             }
@@ -153,9 +154,23 @@ pub async fn run(cfg: Config) {
             &cfg.telegram_bot_token,
             &cfg.telegram_chat_id,
         );
-        for (_mint, msg) in resolution_alerts {
+        for (mint, msg) in resolution_alerts {
             if !cfg.telegram_bot_token.is_empty() {
-                crate::telegram::send_message(&cfg.telegram_bot_token, &cfg.telegram_chat_id, &msg).await;
+                // Parse "OUTCOME|mult|reason" format
+                let parts: Vec<&str> = msg.splitn(3, '|').collect();
+                if parts.len() == 3 {
+                    let outcome = parts[0];
+                    let mult: f64 = parts[1].parse().unwrap_or(1.0);
+                    let reason = parts[2];
+                    crate::telegram::send_resolution(
+                        &cfg.telegram_bot_token,
+                        &cfg.telegram_chat_id,
+                        &mint,
+                        outcome,
+                        mult,
+                        reason,
+                    ).await;
+                }
             }
         }
 
