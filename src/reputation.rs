@@ -12,7 +12,8 @@ lazy_static! {
 }
 
 pub fn load_reputation() {
-    load_ranked();
+    load_wallets_json(); // primary — full DB export
+    load_ranked();       // supplement with CSV data
     load_avoid();
     load_whales();
 
@@ -23,6 +24,33 @@ pub fn load_reputation() {
         rep.len(),
         rug.len()
     );
+}
+
+fn load_wallets_json() {
+    let path = "wallets.json";
+    let Ok(s) = std::fs::read_to_string(path) else { return; };
+    let Ok(map): Result<serde_json::Value, _> = serde_json::from_str(&s) else { return; };
+
+    let mut rep = WALLET_REPUTATION.lock().unwrap();
+    let mut loaded = 0usize;
+
+    if let Some(obj) = map.as_object() {
+        for (wallet, data) in obj {
+            let score = data.get("score").and_then(|s| s.as_f64()).unwrap_or(0.0);
+            let wins = data.get("wins").and_then(|w| w.as_f64()).unwrap_or(0.0);
+            let losses = data.get("losses").and_then(|l| l.as_f64()).unwrap_or(0.0);
+            // Normalize score to -50 to +50 range
+            let normalized = if wins + losses > 0.0 {
+                let wr = wins / (wins + losses);
+                (wr - 0.5) * 100.0 // +50 for 100% WR, -50 for 0% WR
+            } else {
+                (score as f64 - 500.0) / 50.0 // normalize raw score
+            };
+            rep.insert(wallet.clone(), normalized);
+            loaded += 1;
+        }
+    }
+    println!("  ✅ Loaded {} wallets from wallets.json", loaded);
 }
 
 fn load_ranked() {
