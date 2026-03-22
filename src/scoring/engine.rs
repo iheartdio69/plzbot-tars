@@ -118,9 +118,14 @@ pub async fn score_and_manage(
         }
 
         // BSR hard gate — no net selling
+        // Exception: if FDV velocity is strong (≥15%/min) or coin is very new (<5min),
+        // allow BSR < 1.0 — high-volume pumpswap rockets often have sell-heavy tx counts
+        // while still mooning because buy SIZE dominates. Don't kill them on tx count alone.
         let total_tx = trend.buys_5m + trend.sells_5m;
         let bsr = if total_tx >= 5 { trend.buy_sell_ratio } else { 1.0 };
-        if bsr < 1.0 && total_tx >= 5 {
+        let coin_age_secs = c.first_seen.elapsed().as_secs();
+        let bsr_bypass = trend.fdv_velocity_pct >= 15.0 || coin_age_secs < 300;
+        if bsr < 1.0 && total_tx >= 5 && !bsr_bypass {
             skip_bsr += 1;
             continue;
         }
