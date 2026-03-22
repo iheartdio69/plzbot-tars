@@ -26,6 +26,22 @@ impl MarketDiscovery {
         let mut picked: Vec<(String, u64)> = vec![];
         let mut seen: HashSet<String> = HashSet::new();
 
+        // PRIMARY: DexScreener latest token profiles — brand new coins
+        if let Ok(resp) = reqwest::get("https://api.dexscreener.com/token-profiles/latest/v1").await {
+            if let Ok(tokens) = resp.json::<Vec<serde_json::Value>>().await {
+                for token in tokens {
+                    let chain = token.get("chainId").and_then(|v| v.as_str()).unwrap_or("");
+                    if chain != "solana" { continue; }
+                    if let Some(addr) = token.get("tokenAddress").and_then(|v| v.as_str()) {
+                        if seen.insert(addr.to_string()) {
+                            picked.push((addr.to_string(), 999)); // high priority — fresh
+                        }
+                    }
+                }
+            }
+        }
+
+        // SECONDARY: search queries for active small-caps
         for q in &cfg.market_discovery_queries {
             let url = format!("https://api.dexscreener.com/latest/dex/search?q={}", q);
             let resp = match reqwest::get(&url).await {
