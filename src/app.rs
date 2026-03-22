@@ -125,7 +125,7 @@ pub async fn run(cfg: Config) {
                     }
                 }
 
-                // Telegram alert with copy button
+                // Telegram alert — details first, then raw CA for easy copy
                 if !cfg.telegram_bot_token.is_empty() {
                     let trend = crate::market::cache::market_trend(&market, &call.mint, &cfg);
                     crate::telegram::send_call_alert(
@@ -140,6 +140,12 @@ pub async fn run(cfg: Config) {
                         trend.price_change_1h,
                         0,
                         call.score,
+                    ).await;
+                    // Send raw CA as plain text so humans can copy it easily
+                    crate::telegram::send_message(
+                        &cfg.telegram_bot_token,
+                        &cfg.telegram_chat_id,
+                        &call.mint,
                     ).await;
                 }
             }

@@ -130,6 +130,17 @@ pub async fn score_and_manage(
             continue;
         }
 
+        // ── THE LAB BOOST ─────────────────────────────────────────────
+        // Check if this mint was sourced from THE LAB — give it +20 conviction
+        let lab_boost = {
+            let seed_path = "data/lab_seeds.json";
+            if let Ok(s) = std::fs::read_to_string(seed_path) {
+                if let Ok(seeds) = serde_json::from_str::<Vec<String>>(&s) {
+                    seeds.contains(&mint)
+                } else { false }
+            } else { false }
+        };
+
         // ── LATE ENTRY CHECK (hard gate) ──────────────────────────────
         if trend.late_entry {
             skip_velocity += 1;
@@ -225,6 +236,12 @@ pub async fn score_and_manage(
                 continue;
             }
             score += good_boost.min(20);
+        }
+
+        // Apply LAB boost
+        if lab_boost {
+            score += 20;
+            println!("{}", format!("🧪 LAB BOOST +20 → {}", &mint[..12]).cyan());
         }
 
         let is_snipe = lane == "SNIPE" || lane == "CONVICTION";
