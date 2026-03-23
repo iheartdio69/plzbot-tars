@@ -111,11 +111,18 @@ pub async fn score_and_manage(
             continue;
         }
 
-        // Liquidity hard gate
-        if liq < 3_000.0 {
+        // Liquidity gate — pre-bond pump.fun coins show liq=$0 from DexScreener
+        // but are fully tradeable on the bonding curve. Judge by buy activity instead.
+        let pre_bond = liq < 100.0;
+        if pre_bond && trend.buys_5m < 5 {
             skip_liq += 1;
-            continue;
+            continue; // no activity, skip
         }
+        if !pre_bond && liq < 3_000.0 {
+            skip_liq += 1;
+            continue; // bonded but illiquid
+        }
+        if pre_bond { score -= 5; } // small penalty for pre-bond uncertainty
 
         // BSR hard gate — no net selling
         // Exception: if FDV velocity is strong (≥15%/min) or coin is very new (<5min),
