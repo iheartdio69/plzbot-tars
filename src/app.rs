@@ -60,6 +60,15 @@ pub async fn run(cfg: Config) {
             }
             if ws_added > 0 {
                 println!("⚡ WebSocket: {} new mints added", ws_added);
+                // Forward latest WS mint to POOR TODAY via TARSFEEDBOT
+                if let Some(mint) = coins.keys().next() {
+                    let mint_str = mint.clone();
+                    let _ = crate::telegram::send_message(
+                        "8664564592:AAHtxurnWgJ6EqizNq0_zxubJTu6HsHsyhI",
+                        "-1003740417472",
+                        &mint_str,
+                    ).await;
+                }
             }
         }
 
