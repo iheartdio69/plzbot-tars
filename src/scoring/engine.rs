@@ -155,6 +155,13 @@ pub async fn score_and_manage(
             continue;
         }
 
+        // Already peaked — skip only if 200%+ in 1h AND no recent velocity AND high FDV
+        // Don't skip early stage coins that happen to have moved a lot
+        if trend.price_change_1h > 200.0 && trend.fdv_velocity_pct < 0.5 && fdv > 50_000.0 {
+            skip_velocity += 1;
+            continue;
+        }
+
         // ── LATE ENTRY CHECK (hard gate) ──────────────────────────────
         if trend.late_entry {
             skip_velocity += 1;
@@ -178,6 +185,20 @@ pub async fn score_and_manage(
         // Apply pre-bond penalty
         let mut score = 0i32;
         if pre_bond { score -= 5; } // pre-bond penalty
+
+        // 0. Recency bonus — fresh coins get priority
+        //    Under 30min old with any velocity = early entry opportunity
+        let age_min = age_secs / 60;
+        let recency_boost = if age_min < 10 { 20 }
+            else if age_min < 20 { 10 }
+            else if age_min < 30 { 5 }
+            else { 0 };
+        score += recency_boost;
+
+        // Penalize coins that have already had their big pump
+        // These are late entries — the move is done
+        if trend.price_change_1h > 100.0 { score -= 15; }
+        if trend.price_change_1h > 150.0 { score -= 15; } // -30 total for 150%+
 
         // 1. Primary signal — SNIPE/CONVICTION from psychic-spoon logic
         if trend.early_snipe {
