@@ -57,7 +57,9 @@ pub struct CallRecord {
     pub mint: String,
     pub call_ts: u64,
     pub score: i32,
-    pub fdv_at_call: f64,  // FDV at the moment we called it — baseline for mult calc
+    pub fdv_at_call: f64,   // FDV at the moment we called it
+    pub peak_fdv: f64,      // Highest FDV seen after call — true profit potential
+    pub peak_mult: f64,     // Peak multiplier from entry
 
     pub t5_ts: Option<u64>,
     pub wallets_t5: Option<usize>,

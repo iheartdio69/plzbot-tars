@@ -358,7 +358,9 @@ pub async fn score_and_manage(
                 mint: mint.clone(),
                 call_ts: now_ts(),
                 score,
-                fdv_at_call: fdv,  // lock in FDV at call time
+                fdv_at_call: fdv,
+                peak_fdv: fdv,    // start at entry, update as price moves up
+                peak_mult: 1.0,
                 t5_ts: None,
                 wallets_t5: None,
                 tx_t5: None,
