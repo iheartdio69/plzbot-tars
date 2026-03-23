@@ -147,6 +147,14 @@ pub async fn score_and_manage(
             } else { false }
         };
 
+        // Require confirmed upward momentum — at least 2 snapshots AND price moving up NOW
+        // Kills "entered at top of pump that already reversed" losses
+        if trend.snapshots >= 3 && trend.fdv_velocity_pct < -1.0 {
+            // Price actively dropping — don't enter
+            skip_velocity += 1;
+            continue;
+        }
+
         // ── LATE ENTRY CHECK (hard gate) ──────────────────────────────
         if trend.late_entry {
             skip_velocity += 1;
