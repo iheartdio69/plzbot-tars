@@ -358,6 +358,7 @@ pub async fn score_and_manage(
                 mint: mint.clone(),
                 call_ts: now_ts(),
                 score,
+                fdv_at_call: fdv,  // lock in FDV at call time
                 t5_ts: None,
                 wallets_t5: None,
                 tx_t5: None,

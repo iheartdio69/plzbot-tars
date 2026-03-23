@@ -38,10 +38,15 @@ pub fn resolve_calls(
         };
 
         // Get baseline FDV from first snapshot
-        let call_fdv = market.map.get(&call.mint)
-            .and_then(|snaps| snaps.first())
-            .and_then(|s| s.fdv)
-            .unwrap_or(current_fdv);
+        // Use FDV locked at call time — not first snapshot (which could be pre-pump)
+        let call_fdv = if call.fdv_at_call > 0.0 {
+            call.fdv_at_call
+        } else {
+            market.map.get(&call.mint)
+                .and_then(|snaps| snaps.last())  // last = most recent before now, better fallback
+                .and_then(|s| s.fdv)
+                .unwrap_or(current_fdv)
+        };
 
         let mult = if call_fdv > 0.0 { current_fdv / call_fdv } else { 1.0 };
 

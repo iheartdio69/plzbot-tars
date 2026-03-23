@@ -57,6 +57,7 @@ pub struct CallRecord {
     pub mint: String,
     pub call_ts: u64,
     pub score: i32,
+    pub fdv_at_call: f64,  // FDV at the moment we called it — baseline for mult calc
 
     pub t5_ts: Option<u64>,
     pub wallets_t5: Option<usize>,
