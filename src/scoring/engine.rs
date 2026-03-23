@@ -122,7 +122,6 @@ pub async fn score_and_manage(
             skip_liq += 1;
             continue; // bonded but illiquid
         }
-        if pre_bond { score -= 5; } // small penalty for pre-bond uncertainty
 
         // BSR hard gate — no net selling
         // Exception: if FDV velocity is strong (≥15%/min) or coin is very new (<5min),
@@ -168,7 +167,9 @@ pub async fn score_and_manage(
         };
 
         // ── SCORE ─────────────────────────────────────────────────────
+        // Apply pre-bond penalty
         let mut score = 0i32;
+        if pre_bond { score -= 5; } // pre-bond penalty
 
         // 1. Primary signal — SNIPE/CONVICTION from psychic-spoon logic
         if trend.early_snipe {

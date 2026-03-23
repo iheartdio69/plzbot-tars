@@ -1,4 +1,5 @@
 mod app;
+mod trading;
 mod config;
 mod fmt;
 mod helius;
