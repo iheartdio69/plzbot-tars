@@ -208,7 +208,10 @@ pub async fn score_and_manage(
         if trend.buys_5m >= 50 { score += 15; }
 
         // 3. Slow climber — 1h signals
-        if trend.buys_1h >= 50 && trend.bsr_1h >= 1.3 { score += 15; }
+        if trend.buys_1h >= 100  { score += 10; }
+        if trend.buys_1h >= 300  { score += 15; }  // real sustained demand
+        if trend.buys_1h >= 1000 { score += 20; }  // serious volume
+        if trend.buys_1h >= 50 && trend.bsr_1h >= 1.3 { score += 10; }
         if trend.price_change_1h > 10.0 { score += 10; }
         if trend.price_change_1h > 25.0 { score += 10; }
         if trend.volume_1h > 50_000.0 { score += 8; }
