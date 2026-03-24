@@ -8,6 +8,8 @@ use std::time::Instant;
 const MAX_SNAPSHOTS: usize = 10;
 // Minimum seconds between active-coin polls per coin (prevents DexScreener flooding)
 const ACTIVE_POLL_THROTTLE_SECS: u64 = 3;
+// Called coins (open positions / dip wait) — poll every second, no throttle
+const CALLED_POLL_THROTTLE_SECS: u64 = 1;
 
 #[derive(Debug, Clone)]
 pub struct MarketCache {
@@ -239,6 +241,28 @@ impl MarketCache {
             if let Some(t) = last {
                 if t.elapsed().as_secs() < ACTIVE_POLL_THROTTLE_SECS {
                     continue; // skip — polled too recently
+                }
+            }
+            if let Ok(sample) = fetch_dex_sample(mint, now_ts_val).await {
+                let history = self.map.entry(mint.clone()).or_insert_with(Vec::new);
+                history.push(sample);
+                if history.len() > MAX_SNAPSHOTS {
+                    history.remove(0);
+                }
+                self.last_active_poll.insert(mint.clone(), Instant::now());
+            }
+        }
+    }
+
+    /// Poll called coins (open positions / dip wait) every second — hawk mode.
+    /// No mercy on throttle — these coins have money on the line.
+    pub async fn poll_called(&mut self, called_mints: &[String]) {
+        let now_ts_val = now_ts();
+        for mint in called_mints {
+            let last = self.last_active_poll.get(mint);
+            if let Some(t) = last {
+                if t.elapsed().as_secs() < CALLED_POLL_THROTTLE_SECS {
+                    continue;
                 }
             }
             if let Ok(sample) = fetch_dex_sample(mint, now_ts_val).await {

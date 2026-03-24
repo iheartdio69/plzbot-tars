@@ -92,6 +92,12 @@ pub async fn run(cfg: Config) {
             market.poll_active(&active).await;
         }
 
+        // Poll called coins every second — hawk mode, money on the line
+        if !calls.is_empty() {
+            let called_mints: Vec<String> = calls.iter().map(|c| c.mint.clone()).collect();
+            market.poll_called(&called_mints).await;
+        }
+
         // Prune stale coins — active coins ride 2 hours, inactive cleared after 10 min
         coins.retain(|_, c| {
             if c.active { c.first_seen.elapsed().as_secs() < 7200 } // 2hr for active

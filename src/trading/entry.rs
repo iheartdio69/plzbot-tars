@@ -32,7 +32,7 @@ const ROCKET_VELOCITY_BYPASS: f64 = 25.0;
 const DIP_WAIT_TIMEOUT_SECS: u64 = 60;
 
 /// How often to sample price while waiting (seconds)
-const SAMPLE_INTERVAL_SECS: u64 = 2;
+const SAMPLE_INTERVAL_SECS: u64 = 1;
 
 pub async fn wait_for_entry(
     mint: &str,
