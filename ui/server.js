@@ -111,6 +111,34 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  if (req.url.startsWith('/api/sol-price')) {
+    // Fetch SOL price from CoinGecko (free, no key)
+    try {
+      const fetch = require('https');
+      fetch.get('https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd', (r) => {
+        let data = '';
+        r.on('data', d => data += d);
+        r.on('end', () => {
+          try {
+            const price = JSON.parse(data)?.solana?.usd || 130;
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ price }));
+          } catch {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ price: 130 }));
+          }
+        });
+      }).on('error', () => {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ price: 130 }));
+      });
+    } catch {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ price: 130 }));
+    }
+    return;
+  }
+
   if (req.url.startsWith('/api/wallets')) {
     let trades = [];
     try { trades = JSON.parse(fs.readFileSync(WALLETS_JSON, 'utf8')) || []; } catch (_) {}

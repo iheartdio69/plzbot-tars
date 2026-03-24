@@ -841,17 +841,34 @@ function useDemoData() {
 }
 
 // ── WALLET DASHBOARD ──────────────────────────────────────
+let solPrice = 130;
+
+async function fetchSolPrice() {
+  try {
+    const res = await fetch('/api/sol-price');
+    if (res.ok) {
+      const d = await res.json();
+      solPrice = d.price || 130;
+    }
+  } catch (_) {}
+}
+
 async function fetchWallets() {
   try {
     const res = await fetch('/api/wallets');
     if (!res.ok) return;
     const stats = await res.json();
     renderWallets(stats);
-    document.getElementById('wallets-updated').textContent = 'updated ' + clock();
+    document.getElementById('wallets-updated').textContent = 'SOL $' + solPrice.toFixed(0) + ' · updated ' + clock();
   } catch (_) {}
 }
 
 function renderWallets(stats) {
+  const usdFmt = sol => {
+    const usd = sol * solPrice;
+    const sign = usd >= 0 ? '+' : '';
+    return `${sign}$${Math.abs(usd).toFixed(2)}`;
+  };
   const solFmt = n => (n >= 0 ? '+' : '') + n.toFixed(3) + ' SOL';
 
   for (const s of stats) {
@@ -860,15 +877,16 @@ function renderWallets(stats) {
 
     const totalPnl = s.realizedPnl + s.unrealizedPnl;
     const pnlClass = totalPnl > 0 ? 'positive' : totalPnl < -0.01 ? 'negative' : 'neutral';
+    const usdPnl = totalPnl * solPrice;
 
     el.innerHTML = `
-      <div class="wallet-name">${s.name.replace('_', ' ')}</div>
-      <div class="wallet-pnl ${pnlClass}">${solFmt(totalPnl)}</div>
+      <div class="wallet-name">${s.name.replace(/_/g, ' ')}</div>
+      <div class="wallet-pnl ${pnlClass}">${usdFmt(totalPnl)}</div>
       <div class="wallet-meta">
+        <span style="color:var(--dim);font-size:9px">${solFmt(totalPnl)}</span>
         <span>${s.total} calls (${s.open} open)</span>
         <span class="wallet-wr">WR: ${s.wr}%</span>
         <span class="wallet-best">Best: ${s.best > 0 ? s.best.toFixed(1) + 'x' : '—'}</span>
-        <span style="color:var(--dim)">R: ${solFmt(s.realizedPnl)} U: ${solFmt(s.unrealizedPnl)}</span>
       </div>
     `;
   }
@@ -880,9 +898,10 @@ setInterval(() => {
 }, 1000);
 
 setInterval(fetchState, POLL_MS);
-setInterval(fetchWallets, 5000); // wallet refresh every 5s
+setInterval(fetchWallets, 5000);
+setInterval(fetchSolPrice, 60000); // SOL price every minute
 fetchState();
-fetchWallets();
+fetchSolPrice().then(fetchWallets);
 </script>
 </body>
 </html>
