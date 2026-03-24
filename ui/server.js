@@ -115,8 +115,8 @@ const server = http.createServer((req, res) => {
     let trades = [];
     try { trades = JSON.parse(fs.readFileSync(WALLETS_JSON, 'utf8')) || []; } catch (_) {}
 
-    const strategies = ['LOGIC', 'GUT', 'BALANCED', 'SNIPER', 'SCALPER'];
-    const sizes = { LOGIC: 1.0, GUT: 0.25, BALANCED: 1.0, SNIPER: 2.0, SCALPER: 0.75 };
+    const strategies = ['LOGIC_V2', 'GUT', 'GUT_V2', 'DIAMOND', 'BALANCED', 'SCALPER', 'SNIPER', 'LOGIC'];
+    const sizes = { LOGIC: 1.0, LOGIC_V2: 1.0, GUT: 0.25, GUT_V2: 0.25, DIAMOND: 0.1, BALANCED: 1.0, SNIPER: 2.0, SCALPER: 0.75 };
 
     const stats = strategies.map(name => {
       const st = trades.filter(t => t.strategy === name);

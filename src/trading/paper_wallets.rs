@@ -27,33 +27,57 @@ pub struct WalletStrategy {
 
 pub fn all_strategies() -> Vec<WalletStrategy> {
     vec![
-        // 🧠 LOGIC WALLET — Rules-based capital preservation
-        // 50% off at 3x (house money), 25% at 7x, last 25% rides
-        // Hard stop: -40%. Bulk of bankroll lives here.
+        // ─────────────────────────────────────────────────────────────
+        // 🧠 LOGIC_V2 — Stop loss raised to -70% (survives meme dips)
+        // V1 lesson: -40% stop got triggered constantly before coins mooned
+        // V2: only exits true rugs, takes profits earlier to lock gains
         WalletStrategy {
-            name: "LOGIC",
-            sol_size: 1.0,  // 70% of bankroll allocation
-            stop_loss_pct: Some(0.40),
+            name: "LOGIC_V2",
+            sol_size: 1.0,
+            stop_loss_pct: Some(0.70), // -70% — only true rugs, not normal dips
             time_stop_mins: None,
-            tp_levels: vec![3.0, 7.0, 50.0],
-            tp_exit_pcts: vec![50.0, 25.0, 25.0], // 50% at 3x, 25% at 7x, 25% moon
+            tp_levels: vec![2.0, 5.0, 15.0],
+            tp_exit_pcts: vec![40.0, 35.0, 25.0], // take more early, less late
             max_entry_fdv: None,
             min_entry_fdv: None,
         },
-        // 🎰 GUT WALLET — Degen moonshot budget
-        // No stop loss, holds through fat dips, only exits at moonshot targets
-        // Smaller size — survives being wrong more often, massive when right
+        // 🎰 GUT — Original, proven. No stop, ride to moon or zero.
         WalletStrategy {
             name: "GUT",
-            sol_size: 0.25,  // 30% of bankroll — smaller by design
-            stop_loss_pct: None, // no stop — ride or die
+            sol_size: 0.25,
+            stop_loss_pct: None,
             time_stop_mins: None,
             tp_levels: vec![10.0, 20.0],
-            tp_exit_pcts: vec![50.0, 50.0], // 50% at 10x, 50% at 20x
+            tp_exit_pcts: vec![50.0, 50.0],
             max_entry_fdv: None,
             min_entry_fdv: None,
         },
-        // Original strategies kept for comparison
+        // 🎰 GUT_V2 — GUT + rug protection via time-based exit
+        // If coin hasn't hit 2x in 4 hours, something is wrong — bail
+        // Keeps GUT's no-stop philosophy but adds a time rug filter
+        WalletStrategy {
+            name: "GUT_V2",
+            sol_size: 0.25,
+            stop_loss_pct: None, // still no price stop
+            time_stop_mins: Some(240), // 4hr time stop — if no 2x in 4h, exit
+            tp_levels: vec![10.0, 20.0],
+            tp_exit_pcts: vec![50.0, 50.0],
+            max_entry_fdv: None,
+            min_entry_fdv: None,
+        },
+        // 💎 DIAMOND — Pure diamond hands. No stop, no TP until 50x.
+        // Tests whether holding everything to the absolute moon beats GUT
+        WalletStrategy {
+            name: "DIAMOND",
+            sol_size: 0.1, // tiny size — this is a moonshot experiment
+            stop_loss_pct: None,
+            time_stop_mins: None,
+            tp_levels: vec![50.0, 100.0],
+            tp_exit_pcts: vec![50.0, 50.0],
+            max_entry_fdv: None,
+            min_entry_fdv: None,
+        },
+        // Original strategies kept for reference
         WalletStrategy {
             name: "BALANCED",
             sol_size: 1.0,
