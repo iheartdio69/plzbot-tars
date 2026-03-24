@@ -8,9 +8,10 @@ const fs = require('fs');
 const path = require('path');
 
 const PORT = 4269;
-const CALLS_JSON = path.join(__dirname, '..', 'data', 'calls.json');
-const STATE_JSON = path.join(__dirname, '..', 'data', 'state.json');
-const LOG_FILE   = path.join(__dirname, '..', 'data', 'bot.log');
+const CALLS_JSON   = path.join(__dirname, '..', 'data', 'calls.json');
+const STATE_JSON   = path.join(__dirname, '..', 'data', 'state.json');
+const LOG_FILE     = path.join(__dirname, '..', 'data', 'bot.log');
+const WALLETS_JSON = path.join(__dirname, '..', 'data', 'paper_wallet_trades.json');
 
 let cachedState = null;
 let lastRead = 0;
@@ -94,6 +95,32 @@ const server = http.createServer((req, res) => {
   if (req.url === '/api/log') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify(logLines.slice(-100)));
+    return;
+  }
+
+  if (req.url.startsWith('/api/wallets')) {
+    let trades = [];
+    try { trades = JSON.parse(fs.readFileSync(WALLETS_JSON, 'utf8')) || []; } catch (_) {}
+
+    const strategies = ['STRICT_LOGIC', 'BALANCED', 'DEGEN_GUT', 'SNIPER', 'SCALPER'];
+    const sizes = { STRICT_LOGIC: 0.5, BALANCED: 1.0, DEGEN_GUT: 0.25, SNIPER: 2.0, SCALPER: 0.75 };
+
+    const stats = strategies.map(name => {
+      const st = trades.filter(t => t.strategy === name);
+      const closed = st.filter(t => t.status === 'Closed');
+      const open = st.filter(t => t.status === 'Open');
+      const wins = closed.filter(t => t.pnl_sol > 0).length;
+      const losses = closed.filter(t => t.pnl_sol <= 0).length;
+      const realizedPnl = closed.reduce((s, t) => s + (t.pnl_sol || 0), 0);
+      // Unrealized: sum of (peak_mult - 1) * sol_in for open trades
+      const unrealizedPnl = open.reduce((s, t) => s + ((t.peak_mult || 1) - 1) * (t.sol_in || sizes[name] || 0), 0);
+      const wr = (wins + losses) > 0 ? Math.round(wins / (wins + losses) * 100) : 0;
+      const best = closed.length > 0 ? Math.max(...closed.map(t => t.peak_mult || 1)) : 0;
+      return { name, total: st.length, open: open.length, wins, losses, wr, realizedPnl, unrealizedPnl, best };
+    });
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(stats));
     return;
   }
 

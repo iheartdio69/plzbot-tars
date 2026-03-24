@@ -397,6 +397,43 @@
     font-size: 11px;
   }
 
+  /* WALLET CARDS */
+  .wallet-card {
+    background: var(--panel);
+    padding: 10px 14px;
+    min-height: 90px;
+  }
+
+  .wallet-name {
+    font-size: 10px;
+    font-weight: bold;
+    letter-spacing: 1px;
+    color: var(--accent2);
+    margin-bottom: 6px;
+  }
+
+  .wallet-pnl {
+    font-size: 18px;
+    font-weight: bold;
+    margin-bottom: 3px;
+  }
+
+  .wallet-pnl.positive { color: var(--win); }
+  .wallet-pnl.negative { color: var(--loss); }
+  .wallet-pnl.neutral  { color: var(--dim); }
+
+  .wallet-meta {
+    font-size: 10px;
+    color: var(--dim);
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .wallet-meta span { white-space: nowrap; }
+  .wallet-wr { color: var(--accent); }
+  .wallet-best { color: var(--warn); }
+
   /* Blinking cursor */
   .blink {
     animation: blink 1s step-end infinite;
@@ -528,6 +565,26 @@
     </div>
   </div>
 
+</div>
+
+<!-- WALLETS ROW — full width below main grid -->
+<div id="wallets-row" style="
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 1px;
+  background: var(--border);
+  flex-shrink: 0;
+  border-top: 1px solid var(--border);
+">
+  <div style="grid-column: span 5; background: var(--panel); padding: 6px 14px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 12px;">
+    <span style="font-size:10px; text-transform:uppercase; letter-spacing:2px; color:var(--dim);">💼 Paper Wallets</span>
+    <span style="font-size:10px; color:var(--dim)" id="wallets-updated">—</span>
+  </div>
+  <div class="wallet-card" id="w-STRICT_LOGIC"></div>
+  <div class="wallet-card" id="w-BALANCED"></div>
+  <div class="wallet-card" id="w-DEGEN_GUT"></div>
+  <div class="wallet-card" id="w-SNIPER"></div>
+  <div class="wallet-card" id="w-SCALPER"></div>
 </div>
 
 <footer>
@@ -780,13 +837,49 @@ function useDemoData() {
   }
 }
 
+// ── WALLET DASHBOARD ──────────────────────────────────────
+async function fetchWallets() {
+  try {
+    const res = await fetch('/api/wallets');
+    if (!res.ok) return;
+    const stats = await res.json();
+    renderWallets(stats);
+    document.getElementById('wallets-updated').textContent = 'updated ' + clock();
+  } catch (_) {}
+}
+
+function renderWallets(stats) {
+  const solFmt = n => (n >= 0 ? '+' : '') + n.toFixed(3) + ' SOL';
+
+  for (const s of stats) {
+    const el = document.getElementById('w-' + s.name);
+    if (!el) continue;
+
+    const totalPnl = s.realizedPnl + s.unrealizedPnl;
+    const pnlClass = totalPnl > 0 ? 'positive' : totalPnl < -0.01 ? 'negative' : 'neutral';
+
+    el.innerHTML = `
+      <div class="wallet-name">${s.name.replace('_', ' ')}</div>
+      <div class="wallet-pnl ${pnlClass}">${solFmt(totalPnl)}</div>
+      <div class="wallet-meta">
+        <span>${s.total} calls (${s.open} open)</span>
+        <span class="wallet-wr">WR: ${s.wr}%</span>
+        <span class="wallet-best">Best: ${s.best > 0 ? s.best.toFixed(1) + 'x' : '—'}</span>
+        <span style="color:var(--dim)">R: ${solFmt(s.realizedPnl)} U: ${solFmt(s.unrealizedPnl)}</span>
+      </div>
+    `;
+  }
+}
+
 // ── MAIN LOOP ─────────────────────────────────────────────
 setInterval(() => {
   document.getElementById('clock').textContent = clock();
 }, 1000);
 
 setInterval(fetchState, POLL_MS);
-fetchState(); // immediate first load
+setInterval(fetchWallets, 5000); // wallet refresh every 5s
+fetchState();
+fetchWallets();
 </script>
 </body>
 </html>
