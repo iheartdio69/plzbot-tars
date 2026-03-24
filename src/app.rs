@@ -170,6 +170,41 @@ pub async fn run(cfg: Config) {
                         &call.mint,
                     ).await;
                 }
+
+                // ── DIP SNIPER ENTRY ──────────────────────────────────
+                // Wait for a pullback before executing the buy.
+                // Rockets (>25%/min velocity) bypass this and buy immediately.
+                // Timeout after 60s — enter at market rather than miss the whole move.
+                if std::env::var("TARS_ENABLED").unwrap_or_default().to_lowercase() == "true" {
+                    let trend = crate::market::cache::market_trend(&market, &call.mint, &cfg);
+                    let call_fdv = trend.last_fdv.unwrap_or(call.fdv_at_call);
+                    let call_velocity = trend.fdv_velocity_pct;
+
+                    let entry = crate::trading::entry::wait_for_entry(
+                        &call.mint,
+                        call_fdv,
+                        call_velocity,
+                        &market,
+                        &cfg,
+                    ).await;
+
+                    match entry {
+                        crate::trading::entry::EntryDecision::Enter { fdv, reason } => {
+                            println!("  ✅ ENTRY: {} | FDV ${:.0} | {}", &call.mint[..8], fdv, reason);
+                            // TODO: plug executor here when TARS_ENABLED goes live
+                        }
+                        crate::trading::entry::EntryDecision::Skip { reason } => {
+                            println!("  ❌ SKIP ENTRY: {} | {}", &call.mint[..8], reason);
+                            if !cfg.telegram_bot_token.is_empty() {
+                                crate::telegram::send_message(
+                                    &cfg.telegram_bot_token,
+                                    &cfg.telegram_chat_id,
+                                    &format!("❌ Entry skipped: {}\nReason: {}", &call.mint[..12], reason),
+                                ).await;
+                            }
+                        }
+                    }
+                }
             }
         }
 
