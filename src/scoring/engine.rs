@@ -155,6 +155,20 @@ pub async fn score_and_manage(
             continue;
         }
 
+        // ── DECLINING COIN GUARD ──────────────────────────────────────
+        // If velocity is negative AND coin is more than 5 min old, it's dumping.
+        // Don't buy into a dump. This is the #1 loss pattern we're seeing.
+        if coin_age_secs > 300 && trend.fdv_velocity_pct < -0.5 {
+            skip_velocity += 1;
+            continue;
+        }
+
+        // Require 5m price change to be positive — don't buy something going down right now
+        if trend.price_change_5m < -5.0 && coin_age_secs > 300 {
+            skip_velocity += 1;
+            continue;
+        }
+
         // ── LATE ENTRY GUARD v2 ───────────────────────────────────────
         // Data shows 76% of losses are coins we called after they already pumped.
         // If 1h change > 150% AND velocity is flat/declining, we're buying bags.

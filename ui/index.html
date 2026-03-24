@@ -470,6 +470,10 @@
       <span class="status-label">TARS_ENABLED</span>
       <span class="status-value" id="stat-tars-enabled" style="color:var(--loss)">OFF</span>
     </div>
+    <div class="status-item">
+      <span class="status-label">Wallet</span>
+      <span class="status-value" id="stat-wallet-usd" style="color:var(--accent)">$—</span>
+    </div>
     <span class="clock" id="clock">—</span>
   </div>
 </header>
@@ -897,10 +901,27 @@ setInterval(() => {
   document.getElementById('clock').textContent = clock();
 }, 1000);
 
+async function fetchWalletBalance() {
+  try {
+    const [solRes, priceRes] = await Promise.all([
+      fetch('/api/wallet-balance'),
+      fetch('/api/sol-price')
+    ]);
+    const { sol } = await solRes.json();
+    const { price } = await priceRes.json();
+    solPrice = price || 130;
+    const usd = (sol * solPrice).toFixed(2);
+    const el = document.getElementById('stat-wallet-usd');
+    el.textContent = '$' + usd;
+    el.style.color = sol > 0.20 ? 'var(--accent)' : sol > 0.10 ? 'var(--warn)' : 'var(--loss)';
+  } catch (_) {}
+}
+
 setInterval(fetchState, POLL_MS);
 setInterval(fetchWallets, 5000);
-setInterval(fetchSolPrice, 60000); // SOL price every minute
+setInterval(fetchWalletBalance, 15000); // balance every 15s
 fetchState();
+fetchWalletBalance();
 fetchSolPrice().then(fetchWallets);
 </script>
 </body>

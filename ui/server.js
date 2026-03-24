@@ -111,6 +111,32 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  if (req.url.startsWith('/api/wallet-balance')) {
+    const PUBKEY = process.env.TARS_WALLET_PUBKEY || require('fs').readFileSync(require('path').join(BOT_DATA, '..', '.env'), 'utf8').match(/TARS_WALLET_PUBKEY=(.+)/)?.[1]?.trim() || '';
+    const RPC = `https://mainnet.helius-rpc.com/?api-key=${process.env.HELIUS_API_KEY || 'bba3e681-5664-434e-a66c-75ff2f8dba24'}`;
+    const https = require('https');
+    const url = new URL(RPC);
+    const body = JSON.stringify({ jsonrpc:'2.0', id:1, method:'getBalance', params:[PUBKEY] });
+    const opts = { hostname: url.hostname, path: url.pathname + url.search, method: 'POST', headers: { 'Content-Type': 'application/json' } };
+    const req2 = https.request(opts, r2 => {
+      let d = '';
+      r2.on('data', c => d += c);
+      r2.on('end', () => {
+        try {
+          const sol = (JSON.parse(d)?.result?.value || 0) / 1e9;
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ sol, pubkey: PUBKEY }));
+        } catch {
+          res.writeHead(200); res.end(JSON.stringify({ sol: 0 }));
+        }
+      });
+    });
+    req2.on('error', () => { res.writeHead(200); res.end(JSON.stringify({ sol: 0 })); });
+    req2.write(body);
+    req2.end();
+    return;
+  }
+
   if (req.url.startsWith('/api/sol-price')) {
     // Fetch SOL price from CoinGecko (free, no key)
     try {
