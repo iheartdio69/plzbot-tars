@@ -170,23 +170,9 @@ pub async fn score_and_manage(
 
         let vel = trend.fdv_velocity_pct; // keep for near-miss logging
 
-        // ── LANE CLASSIFICATION (full psychic-spoon port) ─────────────
-        let newborn = age_secs <= 180;
-        let lane = if trend.early_snipe {
-            "SNIPE"
-        } else if trend.conviction_momentum {
-            "CONVICTION"
-        } else if trend.buys_5m >= 30 && trend.fdv_velocity_pct >= 10.0 {
-            "SPIKE"  // volume spike — sudden burst of activity
-        } else if fdv >= 700_000.0 {
-            "RUNNER" // already running big — late but real
-        } else if newborn {
-            "NEWBORN" // brand new coin, <3 min old
-        } else if fdv >= 120_000.0 {
-            "MID"    // mid cap with traction
-        } else {
-            "SMALL"  // small cap, developing
-        };
+        // ── LANE CLASSIFICATION ────────────────────────────────────────
+        let lane = crate::scoring::lanes::classify_lane(&trend, age_secs, fdv);
+        let is_snipe = lane.is_high_confidence();
 
         // ── SCORE ─────────────────────────────────────────────────────
         // Apply pre-bond penalty
@@ -227,7 +213,7 @@ pub async fn score_and_manage(
         let total_5m = trend.buys_5m + trend.sells_5m;
         if total_5m < cfg.min_buys_5m as u64 {
             // SNIPE/CONVICTION can pass with less activity
-            if lane == "NEWBORN" { skip_activity += 1; continue; }
+            if lane == crate::scoring::lanes::Lane::Newborn { skip_activity += 1; continue; }
         }
         if bsr >= 1.5 { score += 100; }
         if bsr >= 2.0 { score += 100; }
@@ -301,7 +287,7 @@ pub async fn score_and_manage(
             continue;
         }
 
-        let is_snipe = lane == "SNIPE" || lane == "CONVICTION";
+        // is_snipe already set above from lane.is_high_confidence()
 
         // 8. Shadow watch for near-misses
         if shadow_should_add(score, cfg, if trend.fdv_accel { 1.0 } else { 0.0 }, 0.0) {
