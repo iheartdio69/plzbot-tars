@@ -136,11 +136,6 @@ pub async fn run(cfg: Config) {
         // ── LIVE POSITION EXIT MONITOR ────────────────────────────────
         if cfg.tars_enabled && !live_positions.is_empty() {
             let mut positions_changed = false;
-            let executor = crate::trading::execution::TradeExecutor::new(
-                crate::trading::wallet::TradingWallet::load_from_env()
-                    .expect("TARS_PRIVATE_KEY required"),
-                cfg.helius_rpc_url.clone(),
-            );
 
             for pos in live_positions.iter_mut() {
                 if pos.status == crate::trading::position::PositionStatus::Closed {
@@ -162,8 +157,11 @@ pub async fn run(cfg: Config) {
                     crate::trading::position::PositionAction::ExitFull(reason) => {
                         println!("  🔴 EXIT {} | {} | mult {:.2}x",
                             &pos.mint[..8], reason, pos.peak_mult);
-                        // Sell 100%
-                        match executor.sell(&pos.mint, pos.tokens_held, 100.0).await {
+                        // Sell 95%, keep 5% moon bag forever
+                        match crate::trading::pumpportal::sell(
+                            &cfg.tars_wallet_pubkey, &cfg.tars_private_key,
+                            &cfg.pumpportal_api_key, &pos.mint, 95.0, &cfg.helius_rpc_url,
+                        ).await {
                             Ok(sig) => {
                                 pos.outcome = Some(if pos.peak_mult >= 1.5 { "WIN".into() } else { "LOSS".into() });
                                 pos.status = crate::trading::position::PositionStatus::Closed;
@@ -183,7 +181,10 @@ pub async fn run(cfg: Config) {
                     }
                     crate::trading::position::PositionAction::ExitPartial(pct, reason) => {
                         println!("  🟡 PARTIAL EXIT {:.0}% {} | {}", pct, &pos.mint[..8], reason);
-                        match executor.sell(&pos.mint, pos.tokens_held, pct).await {
+                        match crate::trading::pumpportal::sell(
+                            &cfg.tars_wallet_pubkey, &cfg.tars_private_key,
+                            &cfg.pumpportal_api_key, &pos.mint, pct, &cfg.helius_rpc_url,
+                        ).await {
                             Ok(sig) => {
                                 pos.tp1_triggered = true;
                                 positions_changed = true;
@@ -311,12 +312,15 @@ pub async fn run(cfg: Config) {
                         crate::trading::entry::EntryDecision::Enter { fdv, reason } => {
                             println!("  ✅ ENTRY: {} | FDV ${:.0} | {}", &call.mint[..8], fdv, reason);
 
-                            // Execute the buy via Jupiter
-                            match crate::trading::execution::TradeExecutor::new(
-                                crate::trading::wallet::TradingWallet::load_from_env()
-                                    .expect("TARS_PRIVATE_KEY required when TARS_ENABLED=true"),
-                                cfg.helius_rpc_url.clone(),
-                            ).buy(&call.mint, cfg.tars_sol_tx).await {
+                            // Execute the buy via PumpPortal
+                            match crate::trading::pumpportal::buy(
+                                &cfg.tars_wallet_pubkey,
+                                &cfg.tars_private_key,
+                                &cfg.pumpportal_api_key,
+                                &call.mint,
+                                cfg.tars_sol_tx,
+                                &cfg.helius_rpc_url,
+                            ).await {
                                 Ok(sig) => {
                                     println!("  🚀 BUY executed: {} sig:{}", &call.mint[..8], &sig[..12]);
 

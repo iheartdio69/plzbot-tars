@@ -67,8 +67,11 @@ pub struct Config {
     pub mid_wallet_mult: f64,
     pub mid_tx_mult: f64,
     pub tars_sl_pct: f64,
-    pub tars_enabled: bool,  // master switch — must be true to execute real trades
-    pub tars_sol_tx: f64,    // SOL per trade when live
+    pub tars_enabled: bool,
+    pub tars_sol_tx: f64,
+    pub tars_private_key: String,
+    pub tars_wallet_pubkey: String,
+    pub pumpportal_api_key: String,
 
     pub telegram_bot_token: String,
     pub telegram_chat_id: String,
@@ -194,6 +197,9 @@ pub fn load_config() -> Config {
         tars_sl_pct: get_f64("TARS_SL_PCT", 0.30),
         tars_enabled: get_bool("TARS_ENABLED", false),
         tars_sol_tx: get_f64("TARS_SOL_TX", 0.25),
+        tars_private_key: getenv("TARS_PRIVATE_KEY", ""),
+        tars_wallet_pubkey: getenv("TARS_WALLET_PUBKEY", ""),
+        pumpportal_api_key: getenv("PUMPPORTAL_API_KEY", ""),
 
         telegram_bot_token: getenv("TELEGRAM_BOT_TOKEN", ""),
         telegram_chat_id: getenv("TELEGRAM_CHAT_ID", ""),
