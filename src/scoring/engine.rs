@@ -52,7 +52,6 @@ pub async fn score_and_manage(
     let mints: Vec<String> = coins.keys().cloned().collect();
     let mut scanned = 0u64;
     let mut called = 0u64;
-    let mut skip_bonk = 0u64;
     let mut skip_age = 0u64;
     let mut skip_no_market = 0u64;
     let mut skip_fdv_band = 0u64;
@@ -65,11 +64,6 @@ pub async fn score_and_manage(
 
     for mint in mints {
         scanned += 1;
-
-        if cfg.avoid_bonk && (mint.to_lowercase().contains("bonk")) {
-            skip_bonk += 1;
-            continue;
-        }
 
         let Some(c) = coins.get_mut(&mint) else { continue; };
 
@@ -137,14 +131,21 @@ pub async fn score_and_manage(
         }
 
         // ── THE LAB BOOST ─────────────────────────────────────────────
-        // Check if this mint was sourced from THE LAB — give it +20 conviction
+        // Check if this mint was sourced from THE LAB or WATCHER seed — give it +200 conviction
+        // Reads from both lab_seeds.json (legacy) and seed_mints.json (WATCHER output)
         let lab_boost = {
-            let seed_path = "data/lab_seeds.json";
-            if let Ok(s) = std::fs::read_to_string(seed_path) {
-                if let Ok(seeds) = serde_json::from_str::<Vec<String>>(&s) {
-                    seeds.contains(&mint)
-                } else { false }
-            } else { false }
+            let mut found = false;
+            for seed_path in &["data/lab_seeds.json", "data/seed_mints.json"] {
+                if let Ok(s) = std::fs::read_to_string(seed_path) {
+                    if let Ok(seeds) = serde_json::from_str::<Vec<String>>(&s) {
+                        if seeds.contains(&mint) {
+                            found = true;
+                            break;
+                        }
+                    }
+                }
+            }
+            found
         };
 
         // Require confirmed upward momentum — at least 2 snapshots AND price moving up NOW
@@ -184,66 +185,70 @@ pub async fn score_and_manage(
         // ── SCORE ─────────────────────────────────────────────────────
         // Apply pre-bond penalty
         let mut score = 0i32;
-        if pre_bond { score -= 5; } // pre-bond penalty
+        if pre_bond { score -= 50; } // pre-bond penalty
 
         // 0. Recency bonus — fresh coins get priority
         //    Under 30min old with any velocity = early entry opportunity
         let age_min = age_secs / 60;
-        let recency_boost = if age_min < 10 { 20 }
-            else if age_min < 20 { 10 }
-            else if age_min < 30 { 5 }
+        let recency_boost = if age_min < 10 { 200 }
+            else if age_min < 20 { 100 }
+            else if age_min < 30 { 50 }
             else { 0 };
         score += recency_boost;
 
         // Penalize coins that have already had their big pump
         // These are late entries — the move is done
-        if trend.price_change_1h > 100.0 { score -= 15; }
-        if trend.price_change_1h > 150.0 { score -= 15; } // -30 total for 150%+
+        if trend.price_change_1h > 100.0 { score -= 150; }
+        if trend.price_change_1h > 150.0 { score -= 150; } // -300 total for 150%+
 
         // 1. Primary signal — SNIPE/CONVICTION from psychic-spoon logic
         if trend.early_snipe {
             // FDV < $50k + 15%+ growth in 5m = strong early signal
-            score += 40;
-            score += (trend.fdv_growth_5m_pct * 2.0).min(40.0) as i32;
+            score += 400;
+            score += (trend.fdv_growth_5m_pct * 20.0).min(400.0) as i32;
         } else if trend.conviction_momentum {
             // $15k+ abs gain = real money in
-            score += 30;
-            score += (trend.fdv_abs_gain_5m / 1000.0).min(30.0) as i32;
+            score += 300;
+            score += (trend.fdv_abs_gain_5m / 100.0).min(300.0) as i32;
         } else {
             // Fall back to velocity for other coins
             let vel = trend.fdv_velocity_pct;
             if vel < -2.0 { skip_velocity += 1; continue; }
-            if vel > 0.0 { score += (vel * 6.0).min(40.0) as i32; }
+            if vel > 0.0 { score += (vel * 60.0).min(400.0) as i32; }
         }
 
-        // 2. Buy pressure 5m
+        // 2. Buy pressure 5m (balanced signal)
         let total_5m = trend.buys_5m + trend.sells_5m;
         if total_5m < cfg.min_buys_5m as u64 {
             // SNIPE/CONVICTION can pass with less activity
             if lane == "NEWBORN" { skip_activity += 1; continue; }
         }
-        if bsr >= 1.5 { score += 10; }
-        if bsr >= 2.0 { score += 10; }
-        if bsr >= 3.0 { score += 10; }
-        if trend.buys_5m >= 25 { score += 10; }
-        if trend.buys_5m >= 50 { score += 15; }
+        if bsr >= 1.5 { score += 100; }
+        if bsr >= 2.0 { score += 100; }
+        if bsr >= 3.0 { score += 100; }
+        if trend.buys_5m >= 25 { score += 100; }
+        if trend.buys_5m >= 50 { score += 150; }
 
-        // 3. Slow climber — 1h signals
-        if trend.buys_1h >= 100  { score += 10; }
-        if trend.buys_1h >= 300  { score += 15; }  // real sustained demand
-        if trend.buys_1h >= 1000 { score += 20; }  // serious volume
-        if trend.buys_1h >= 50 && trend.bsr_1h >= 1.3 { score += 10; }
-        if trend.price_change_1h > 10.0 { score += 10; }
-        if trend.price_change_1h > 25.0 { score += 10; }
-        if trend.volume_1h > 50_000.0 { score += 8; }
+        // 3. Slow climber — 1h signals (holder velocity proxy)
+        if trend.buys_1h >= 100  { score += 100; }
+        if trend.buys_1h >= 300  { score += 150; } // real sustained demand
+        if trend.buys_1h >= 1000 { score += 200; } // serious volume
+        if trend.buys_1h >= 50 && trend.bsr_1h >= 1.3 { score += 100; }
+        if trend.price_change_1h > 10.0 { score += 100; }
+        if trend.price_change_1h > 25.0 { score += 100; }
+        if trend.volume_1h > 50_000.0 { score += 80; }
 
-        // 4. Liquidity quality
-        if liq >= 10_000.0 { score += 5; }
-        if liq >= 30_000.0 { score += 10; }
-        if trend.liq_velocity_pct > 1.0 { score += 10; }
+        // 4. Liquidity growth (liq trajectory signal)
+        if liq >= 10_000.0 { score += 50; }
+        if liq >= 30_000.0 { score += 100; }
+        if trend.liq_velocity_pct > 1.0 { score += 100; } // actively growing liquidity
 
-        // 5. Real buy size from Helius (0.5+ SOL = real human)
+        // 5. Real buy size from Helius (on-chain single buy signals)
         let recent_ts = now_ts();
+        let sol1_count = c.events.iter()
+            .filter(|e| recent_ts.saturating_sub(e.ts) < cfg.window_secs)
+            .filter(|e| e.tier == WhaleTier::Sol1 || e.tier == WhaleTier::Beluga || e.tier == WhaleTier::Blue)
+            .count();
         let beluga_count = c.events.iter()
             .filter(|e| recent_ts.saturating_sub(e.ts) < cfg.window_secs)
             .filter(|e| e.tier == WhaleTier::Beluga || e.tier == WhaleTier::Blue)
@@ -252,10 +257,11 @@ pub async fn score_and_manage(
             .filter(|e| recent_ts.saturating_sub(e.ts) < cfg.window_secs)
             .filter(|e| e.tier == WhaleTier::Blue)
             .count();
-        score += (beluga_count as i32) * 8;
-        score += (blue_count as i32) * 15;
+        score += (sol1_count as i32) * 50;
+        score += (beluga_count as i32) * 80; // additional on top of sol1
+        score += (blue_count as i32) * 150;  // additional on top of beluga
 
-        // 6. Wallet reputation modifier
+        // 6. Wallet reputation — modifier only, never a gate
         let wallets = window_wallets(&c.events, cfg.window_secs);
         if !wallets.is_empty() {
             let rep_lock = WALLET_REPUTATION.lock().unwrap();
@@ -263,25 +269,30 @@ pub async fn score_and_manage(
             let mut bad_count = 0usize;
             let mut good_boost = 0i32;
             for w in &wallets {
-                if rug_lock.contains(w) { bad_count += 1; }
-                else if let Some(rep) = rep_lock.get(w) {
-                    if *rep > 10.0 { good_boost += 8; }
-                    else if *rep > 5.0 { good_boost += 4; }
+                if rug_lock.contains(w) {
+                    bad_count += 1;
+                } else if let Some(rep) = rep_lock.get(w) {
+                    if *rep > 10.0 { good_boost += 80; }
+                    else if *rep > 5.0 { good_boost += 40; }
                     else if *rep < -5.0 { bad_count += 1; }
                 }
             }
-            let bad_ratio = bad_count as f64 / wallets.len() as f64;
-            if bad_ratio > 0.20 {
-                skip_rug += 1;
-                continue;
-            }
-            score += good_boost.min(20);
+            // Bad wallets are a score penalty, NOT a gate
+            score -= (bad_count as i32) * 80;
+            score += good_boost.min(200);
         }
 
         // Apply LAB boost
         if lab_boost {
-            score += 20;
-            println!("{}", format!("🧪 LAB BOOST +20 → {}", &mint[..12]).cyan());
+            score += 200;
+            println!("{}", format!("🧪 LAB BOOST +200 → {}", &mint[..12]).cyan());
+        }
+
+        // ── FDV HIGH-CONFIDENCE GATE (post-score) ─────────────────────
+        // Primary window is $20k–$40k. Above $40k only if score is very high.
+        if fdv > cfg.primary_max_fdv_usd && score < cfg.high_confidence_score_threshold {
+            skip_fdv_band += 1;
+            continue;
         }
 
         let is_snipe = lane == "SNIPE" || lane == "CONVICTION";
@@ -292,7 +303,7 @@ pub async fn score_and_manage(
         }
 
         // Near-miss log
-        if score >= cfg.score_target - 20 && score < cfg.score_target {
+        if score >= cfg.score_target - 200 && score < cfg.score_target {
             println!(
                 "{}",
                 format!(
@@ -409,8 +420,8 @@ pub async fn score_and_manage(
     println!(
         "{}",
         format!(
-            "DBG scanned={} called={} skip(bonk={} age={} nodata={} fdv={} vel={} liq={} bsr={} rug={} activity={} full={})",
-            scanned, called, skip_bonk, skip_age, skip_no_market,
+            "DBG scanned={} called={} skip(age={} nodata={} fdv={} vel={} liq={} bsr={} rug={} activity={} full={})",
+            scanned, called, skip_age, skip_no_market,
             skip_fdv_band, skip_velocity, skip_liq, skip_bsr, skip_rug, skip_activity, skip_active_full
         ).bright_black()
     );

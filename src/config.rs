@@ -35,8 +35,14 @@ pub struct Config {
 
     pub max_active_coins: usize,
 
-    pub beluga_sol_tx: f64,
-    pub blue_sol_tx: f64,
+    pub sol1_sol_tx: f64,   // 1+ SOL buy tier
+    pub beluga_sol_tx: f64, // 2+ SOL buy tier
+    pub blue_sol_tx: f64,   // 5+ SOL buy tier
+
+    // FDV high-confidence extension: allow up to this FDV if score >= threshold
+    pub primary_max_fdv_usd: f64,
+    pub high_confidence_max_fdv_usd: f64,
+    pub high_confidence_score_threshold: i32,
 
     pub sol_mint: String,
     pub usdc_mint: String,
@@ -140,12 +146,12 @@ pub fn load_config() -> Config {
 
         min_watch_fdv_usd: get_f64("MIN_WATCH_FDV_USD", 5000.0),
         max_watch_fdv_usd: get_f64("MAX_WATCH_FDV_USD", 10_000_000.0),
-        min_call_fdv_usd: get_f64("MIN_CALL_FDV_USD", 10000.0),
-        max_call_fdv_usd: get_f64("MAX_CALL_FDV_USD", 500000.0),
+        min_call_fdv_usd: get_f64("MIN_CALL_FDV_USD", 20000.0),
+        max_call_fdv_usd: get_f64("MAX_CALL_FDV_USD", 150000.0),
         min_liq_usd: get_f64("DISCOVERY_MIN_LIQ_USD", 0.0),
 
-        score_target: get_i32("SCORE_TARGET", 40),
-        score_demote: get_i32("SCORE_DEMOTE", -10),
+        score_target: get_i32("SCORE_TARGET", 400),
+        score_demote: get_i32("SCORE_DEMOTE", -100),
         demote_streak: get_u64("DEMOTE_STREAK", 10) as u8,
 
         min_signers_for_target: get_usize("MIN_SIGNERS_FOR_TARGET", 6),
@@ -153,8 +159,13 @@ pub fn load_config() -> Config {
 
         max_active_coins: get_usize("MAX_ACTIVE_COINS", 10),
 
+        sol1_sol_tx: get_f64("SOL1_SOL_TX", 1.0),
         beluga_sol_tx: get_f64("BELUGA_SOL_TX", 2.0),
         blue_sol_tx: get_f64("BLUE_SOL_TX", 5.0),
+
+        primary_max_fdv_usd: get_f64("PRIMARY_MAX_FDV_USD", 40000.0),
+        high_confidence_max_fdv_usd: get_f64("HIGH_CONFIDENCE_MAX_FDV_USD", 150000.0),
+        high_confidence_score_threshold: get_i32("HIGH_CONFIDENCE_SCORE_THRESHOLD", 500),
 
         sol_mint: "So11111111111111111111111111111111111111112".to_string(),
         usdc_mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v".to_string(),

@@ -6,11 +6,14 @@ use std::time::Instant;
 
 // Keep N snapshots per coin to compute velocity
 const MAX_SNAPSHOTS: usize = 10;
+// Minimum seconds between active-coin polls per coin (prevents DexScreener flooding)
+const ACTIVE_POLL_THROTTLE_SECS: u64 = 3;
 
 #[derive(Debug, Clone)]
 pub struct MarketCache {
     pub map: HashMap<String, Vec<MarketSample>>,
     pub last_poll: Instant,
+    pub last_active_poll: HashMap<String, Instant>,
 }
 
 impl MarketCache {
@@ -18,6 +21,7 @@ impl MarketCache {
         Self {
             map: HashMap::new(),
             last_poll: Instant::now(),
+            last_active_poll: HashMap::new(),
         }
     }
 }
@@ -227,15 +231,23 @@ impl MarketCache {
     }
 
     pub async fn poll_active(&mut self, active_mints: &[String]) {
-        // Hammer active coins as fast as possible — no throttle
-        let now = now_ts();
+        // Throttle per-coin: at most once every ACTIVE_POLL_THROTTLE_SECS seconds.
+        // Prevents DexScreener flooding when main loop runs every 1s with 10 active coins.
+        let now_ts_val = now_ts();
         for mint in active_mints {
-            if let Ok(sample) = fetch_dex_sample(mint, now).await {
+            let last = self.last_active_poll.get(mint);
+            if let Some(t) = last {
+                if t.elapsed().as_secs() < ACTIVE_POLL_THROTTLE_SECS {
+                    continue; // skip — polled too recently
+                }
+            }
+            if let Ok(sample) = fetch_dex_sample(mint, now_ts_val).await {
                 let history = self.map.entry(mint.clone()).or_insert_with(Vec::new);
                 history.push(sample);
                 if history.len() > MAX_SNAPSHOTS {
                     history.remove(0);
                 }
+                self.last_active_poll.insert(mint.clone(), Instant::now());
             }
         }
     }

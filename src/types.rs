@@ -4,8 +4,9 @@ use std::time::Instant;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum WhaleTier {
     None,
-    Beluga,
-    Blue,
+    Sol1,   // 1+ SOL single buy
+    Beluga, // 2+ SOL
+    Blue,   // 5+ SOL
 }
 
 #[derive(Debug, Clone)]

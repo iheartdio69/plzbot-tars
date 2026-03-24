@@ -8,6 +8,8 @@ pub fn classify_tier(sol_out: f64, cfg: &Config) -> WhaleTier {
         WhaleTier::Blue
     } else if sol_out >= cfg.beluga_sol_tx {
         WhaleTier::Beluga
+    } else if sol_out >= cfg.sol1_sol_tx {
+        WhaleTier::Sol1
     } else {
         WhaleTier::None
     }

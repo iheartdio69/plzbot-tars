@@ -97,23 +97,6 @@ fn is_pair_candidate(cfg: &Config, p: &DexPair) -> bool {
     if p.chain_id != "solana" {
         return false;
     }
-    let base_sym = p
-        .base_token
-        .symbol
-        .as_ref()
-        .cloned()
-        .unwrap_or_default()
-        .to_uppercase();
-    let quote_sym = p
-        .quote_token
-        .symbol
-        .as_ref()
-        .cloned()
-        .unwrap_or_default()
-        .to_uppercase();
-    if cfg.avoid_bonk && (base_sym.contains("BONK") || quote_sym.contains("BONK")) {
-        return false;
-    }
     let fdv_ok = p.fdv.unwrap_or(0.0) >= cfg.discovery_min_fdv_usd;
     let liq_ok = p
         .liquidity
