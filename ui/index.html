@@ -784,9 +784,9 @@ async function fetchState() {
     const state = await res.json();
 
     renderHeaderStats(state);
-    renderActive(state.coins);
-    renderCalls(state.calls);
-    renderStats(state.calls);
+    renderActive(state.coins || []);
+    renderCalls(state.calls || []);
+    renderStats(state.calls || []);
 
     // Add new log lines
     if (state.log && state.log.length) {
@@ -800,9 +800,9 @@ async function fetchState() {
 
     document.getElementById('bot-status').textContent = 'RUNNING';
   } catch (e) {
-    // Server not running — show demo state
     document.getElementById('bot-status').textContent = 'OFFLINE';
-    useDemoData();
+    // Only use demo data if we've never loaded real data
+    if (!lastTick) useDemoData();
   }
 }
 

@@ -79,9 +79,18 @@ function loadState() {
       tx_t5: c.tx_t5 || null,
       tx_t15: c.tx_t15 || null,
     })),
+    // active is a list of mint strings — convert to objects for the UI
+    coins: (live.active || []).map(mint => ({
+      mint,
+      active: true,
+      score: calls.find(c => c.mint === mint)?.score || 0,
+      fdv: calls.find(c => c.mint === mint)?.fdv_at_call || 0,
+      first_seen_ts: Math.floor(Date.now() / 1000) - 300,
+      wallets: 0,
+    })),
     tars_enabled: live.tars_enabled || false,
-    log: logLines.slice(-100),
-    bot_running: fs.existsSync(LOG_FILE),
+    log: logLines.slice(-100).map((l, i) => ({ ts: l.ts || i, msg: l.line || l.msg || '' })),
+    bot_running: true,
   };
 
   return cachedState;
