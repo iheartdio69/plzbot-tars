@@ -27,16 +27,33 @@ pub struct WalletStrategy {
 
 pub fn all_strategies() -> Vec<WalletStrategy> {
     vec![
+        // 🧠 LOGIC WALLET — Rules-based capital preservation
+        // 50% off at 3x (house money), 25% at 7x, last 25% rides
+        // Hard stop: -40%. Bulk of bankroll lives here.
         WalletStrategy {
-            name: "STRICT_LOGIC",
-            sol_size: 0.5,
-            stop_loss_pct: Some(0.30),
+            name: "LOGIC",
+            sol_size: 1.0,  // 70% of bankroll allocation
+            stop_loss_pct: Some(0.40),
             time_stop_mins: None,
-            tp_levels: vec![2.0, 3.0, 5.0],
-            tp_exit_pcts: vec![40.0, 35.0, 25.0],
-            max_entry_fdv: None,    // any FDV
+            tp_levels: vec![3.0, 7.0, 50.0],
+            tp_exit_pcts: vec![50.0, 25.0, 25.0], // 50% at 3x, 25% at 7x, 25% moon
+            max_entry_fdv: None,
             min_entry_fdv: None,
         },
+        // 🎰 GUT WALLET — Degen moonshot budget
+        // No stop loss, holds through fat dips, only exits at moonshot targets
+        // Smaller size — survives being wrong more often, massive when right
+        WalletStrategy {
+            name: "GUT",
+            sol_size: 0.25,  // 30% of bankroll — smaller by design
+            stop_loss_pct: None, // no stop — ride or die
+            time_stop_mins: None,
+            tp_levels: vec![10.0, 20.0],
+            tp_exit_pcts: vec![50.0, 50.0], // 50% at 10x, 50% at 20x
+            max_entry_fdv: None,
+            min_entry_fdv: None,
+        },
+        // Original strategies kept for comparison
         WalletStrategy {
             name: "BALANCED",
             sol_size: 1.0,
@@ -48,23 +65,13 @@ pub fn all_strategies() -> Vec<WalletStrategy> {
             min_entry_fdv: None,
         },
         WalletStrategy {
-            name: "DEGEN_GUT",
-            sol_size: 0.25,
-            stop_loss_pct: None,
-            time_stop_mins: None,
-            tp_levels: vec![5.0, 10.0, 20.0],
-            tp_exit_pcts: vec![25.0, 35.0, 40.0],
-            max_entry_fdv: None,
-            min_entry_fdv: None,
-        },
-        WalletStrategy {
             name: "SNIPER",
             sol_size: 2.0,
             stop_loss_pct: Some(0.20),
             time_stop_mins: Some(30),
             tp_levels: vec![1.5, 2.5, 5.0],
             tp_exit_pcts: vec![40.0, 35.0, 25.0],
-            max_entry_fdv: Some(10_000.0), // SNIPER: only enter under $10k FDV
+            max_entry_fdv: Some(10_000.0),
             min_entry_fdv: None,
         },
         WalletStrategy {

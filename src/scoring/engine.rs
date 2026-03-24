@@ -307,6 +307,17 @@ pub async fn score_and_manage(
         }
 
         if score < cfg.score_target {
+            // Log near-misses so we can tune the threshold
+            if score >= 100 {
+                println!(
+                    "{}",
+                    format!(
+                        "👀 NEAR {} | {} | FDV ${} | vel {:.1}%/min | BSR {:.1}x | b5m {} | score {} / {}",
+                        lane, &mint[..8], fmt_f64_0_commas(fdv), trend.fdv_velocity_pct,
+                        bsr, trend.buys_5m, score, cfg.score_target
+                    ).bright_black()
+                );
+            }
             skip_activity += 1;
             continue;
         }

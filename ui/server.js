@@ -8,10 +8,14 @@ const fs = require('fs');
 const path = require('path');
 
 const PORT = 4269;
-const CALLS_JSON   = path.join(__dirname, '..', 'data', 'calls.json');
-const STATE_JSON   = path.join(__dirname, '..', 'data', 'state.json');
-const LOG_FILE     = path.join(__dirname, '..', 'data', 'bot.log');
-const WALLETS_JSON = path.join(__dirname, '..', 'data', 'paper_wallet_trades.json');
+// Bot runs from ~/.openclaw/workspace/plzbot — data lives there
+const BOT_DATA = process.env.BOT_DATA_DIR
+  || require('os').homedir() + '/.openclaw/workspace/plzbot/data';
+
+const CALLS_JSON   = path.join(BOT_DATA, 'calls.json');
+const STATE_JSON   = path.join(BOT_DATA, 'state.json');
+const LOG_FILE     = require('os').homedir() + '/Desktop/TARS/logs/bot.log';
+const WALLETS_JSON = path.join(BOT_DATA, 'paper_wallet_trades.json');
 
 let cachedState = null;
 let lastRead = 0;
@@ -102,8 +106,8 @@ const server = http.createServer((req, res) => {
     let trades = [];
     try { trades = JSON.parse(fs.readFileSync(WALLETS_JSON, 'utf8')) || []; } catch (_) {}
 
-    const strategies = ['STRICT_LOGIC', 'BALANCED', 'DEGEN_GUT', 'SNIPER', 'SCALPER'];
-    const sizes = { STRICT_LOGIC: 0.5, BALANCED: 1.0, DEGEN_GUT: 0.25, SNIPER: 2.0, SCALPER: 0.75 };
+    const strategies = ['LOGIC', 'GUT', 'BALANCED', 'SNIPER', 'SCALPER'];
+    const sizes = { LOGIC: 1.0, GUT: 0.25, BALANCED: 1.0, SNIPER: 2.0, SCALPER: 0.75 };
 
     const stats = strategies.map(name => {
       const st = trades.filter(t => t.strategy === name);
