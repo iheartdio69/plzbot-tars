@@ -14,11 +14,15 @@ use crate::time::now_ts;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WalletStrategy {
     pub name: &'static str,
-    pub sol_size: f64,          // SOL per trade
-    pub stop_loss_pct: Option<f64>, // None = no stop (DEGEN)
-    pub time_stop_mins: Option<u64>, // Some strategies exit after N mins regardless
-    pub tp_levels: Vec<f64>,    // multipliers e.g. [2.0, 4.0, 10.0]
-    pub tp_exit_pcts: Vec<f64>, // % of position to sell at each TP level
+    pub sol_size: f64,
+    pub stop_loss_pct: Option<f64>,
+    pub time_stop_mins: Option<u64>,
+    pub tp_levels: Vec<f64>,
+    pub tp_exit_pcts: Vec<f64>,
+    /// Only enter if entry FDV is below this (None = no limit)
+    pub max_entry_fdv: Option<f64>,
+    /// Only enter if entry FDV is above this (None = no limit)
+    pub min_entry_fdv: Option<f64>,
 }
 
 pub fn all_strategies() -> Vec<WalletStrategy> {
@@ -29,7 +33,9 @@ pub fn all_strategies() -> Vec<WalletStrategy> {
             stop_loss_pct: Some(0.30),
             time_stop_mins: None,
             tp_levels: vec![2.0, 3.0, 5.0],
-            tp_exit_pcts: vec![40.0, 35.0, 25.0], // sell 40% at 2x, 35% at 3x, 25% at 5x
+            tp_exit_pcts: vec![40.0, 35.0, 25.0],
+            max_entry_fdv: None,    // any FDV
+            min_entry_fdv: None,
         },
         WalletStrategy {
             name: "BALANCED",
@@ -38,22 +44,28 @@ pub fn all_strategies() -> Vec<WalletStrategy> {
             time_stop_mins: None,
             tp_levels: vec![2.0, 4.0, 10.0],
             tp_exit_pcts: vec![33.0, 33.0, 34.0],
+            max_entry_fdv: None,
+            min_entry_fdv: None,
         },
         WalletStrategy {
             name: "DEGEN_GUT",
             sol_size: 0.25,
-            stop_loss_pct: None, // no stop — ride or die
+            stop_loss_pct: None,
             time_stop_mins: None,
             tp_levels: vec![5.0, 10.0, 20.0],
             tp_exit_pcts: vec![25.0, 35.0, 40.0],
+            max_entry_fdv: None,
+            min_entry_fdv: None,
         },
         WalletStrategy {
             name: "SNIPER",
             sol_size: 2.0,
             stop_loss_pct: Some(0.20),
-            time_stop_mins: Some(30), // exit after 30 min regardless
+            time_stop_mins: Some(30),
             tp_levels: vec![1.5, 2.5, 5.0],
             tp_exit_pcts: vec![40.0, 35.0, 25.0],
+            max_entry_fdv: Some(10_000.0), // SNIPER: only enter under $10k FDV
+            min_entry_fdv: None,
         },
         WalletStrategy {
             name: "SCALPER",
@@ -62,6 +74,8 @@ pub fn all_strategies() -> Vec<WalletStrategy> {
             time_stop_mins: None,
             tp_levels: vec![1.5, 2.0],
             tp_exit_pcts: vec![50.0, 50.0],
+            max_entry_fdv: None,
+            min_entry_fdv: None,
         },
     ]
 }
@@ -156,6 +170,13 @@ pub fn open_paper_trades(mint: &str, entry_fdv: f64) {
         // Don't re-open if already tracking this mint for this strategy
         if trades.iter().any(|t| t.mint == mint && t.strategy == strat.name) {
             continue;
+        }
+        // FDV filter — skip if coin doesn't meet strategy's entry criteria
+        if let Some(max) = strat.max_entry_fdv {
+            if entry_fdv > max { continue; }
+        }
+        if let Some(min) = strat.min_entry_fdv {
+            if entry_fdv < min { continue; }
         }
         trades.push(PaperTrade::new(strat.name, mint, entry_fdv, strat.sol_size));
     }
