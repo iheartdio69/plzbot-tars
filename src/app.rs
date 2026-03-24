@@ -111,7 +111,7 @@ pub async fn run(cfg: Config) {
             });
             market.poll(&cfg, &mint_list).await;
         }
-        fetch_onchain_events(&cfg, &mut coins).await;
+        fetch_onchain_events(&cfg, &mut coins, &market).await;
         let prev_call_count = calls.len();
         score_and_manage(
             &cfg,
