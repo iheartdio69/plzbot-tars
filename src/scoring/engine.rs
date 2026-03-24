@@ -82,6 +82,19 @@ pub async fn score_and_manage(
             continue;
         }
 
+        // ── Check Lab source BEFORE FDV gate ──────────────────────────
+        let lab_boost_early = {
+            let mut found = false;
+            for seed_path in &["data/lab_seeds.json", "data/seed_mints.json"] {
+                if let Ok(s) = std::fs::read_to_string(seed_path) {
+                    if let Ok(seeds) = serde_json::from_str::<Vec<String>>(&s) {
+                        if seeds.contains(&mint) { found = true; break; }
+                    }
+                }
+            }
+            found
+        };
+
         let trend = market_trend(market, &mint, cfg);
         let fdv = match trend.last_fdv {
             Some(f) if f > 0.0 => f,
@@ -93,8 +106,8 @@ pub async fn score_and_manage(
         let was_called = calls.iter().any(|c| c.mint == mint);
         missed.update(&mint, fdv, trend.buys_5m, trend.fdv_velocity_pct, trend.buy_sell_ratio, cfg, was_called);
 
-        // FDV band gate
-        if fdv < cfg.min_call_fdv_usd || fdv > cfg.max_call_fdv_usd {
+        // FDV band gate — Lab coins bypass entirely (humans already vetted)
+        if !lab_boost_early && (fdv < cfg.min_call_fdv_usd || fdv > cfg.max_call_fdv_usd) {
             skip_fdv_band += 1;
             continue;
         }
@@ -131,22 +144,8 @@ pub async fn score_and_manage(
         }
 
         // ── THE LAB BOOST ─────────────────────────────────────────────
-        // Check if this mint was sourced from THE LAB or WATCHER seed — give it +200 conviction
-        // Reads from both lab_seeds.json (legacy) and seed_mints.json (WATCHER output)
-        let lab_boost = {
-            let mut found = false;
-            for seed_path in &["data/lab_seeds.json", "data/seed_mints.json"] {
-                if let Ok(s) = std::fs::read_to_string(seed_path) {
-                    if let Ok(seeds) = serde_json::from_str::<Vec<String>>(&s) {
-                        if seeds.contains(&mint) {
-                            found = true;
-                            break;
-                        }
-                    }
-                }
-            }
-            found
-        };
+        // Reuse early check — +200 score for Lab/WATCHER sourced coins
+        let lab_boost = lab_boost_early;
 
         // Require confirmed upward momentum — at least 2 snapshots AND price moving up NOW
         // Kills "entered at top of pump that already reversed" losses
@@ -171,15 +170,22 @@ pub async fn score_and_manage(
 
         let vel = trend.fdv_velocity_pct; // keep for near-miss logging
 
-        // ── LANE CLASSIFICATION (from psychic-spoon) ──────────────────
+        // ── LANE CLASSIFICATION (full psychic-spoon port) ─────────────
+        let newborn = age_secs <= 180;
         let lane = if trend.early_snipe {
             "SNIPE"
         } else if trend.conviction_momentum {
             "CONVICTION"
-        } else if trend.buys_1h >= 20 && trend.price_change_1h.abs() > 5.0 {
-            "SNIPE" // slow SNIPE — already moving over 1h
+        } else if trend.buys_5m >= 30 && trend.fdv_velocity_pct >= 10.0 {
+            "SPIKE"  // volume spike — sudden burst of activity
+        } else if fdv >= 700_000.0 {
+            "RUNNER" // already running big — late but real
+        } else if newborn {
+            "NEWBORN" // brand new coin, <3 min old
+        } else if fdv >= 120_000.0 {
+            "MID"    // mid cap with traction
         } else {
-            "NEWBORN"
+            "SMALL"  // small cap, developing
         };
 
         // ── SCORE ─────────────────────────────────────────────────────

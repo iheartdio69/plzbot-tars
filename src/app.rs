@@ -48,6 +48,29 @@ pub async fn run(cfg: Config) {
             discovered.len()
         );
 
+        // ── INSTANT SEED DRAIN — every tick ───────────────────────────
+        // Reads seed_mints.json on every loop so Lab/WATCHER mints are processed
+        // within 1 second instead of waiting up to 60s for discovery cycle
+        {
+            let seed_path = "data/seed_mints.json";
+            if let Ok(s) = std::fs::read_to_string(seed_path) {
+                if let Ok(seeds) = serde_json::from_str::<Vec<String>>(&s) {
+                    let mut added = 0usize;
+                    for mint in &seeds {
+                        if !coins.contains_key(mint) {
+                            coins.insert(mint.clone(), crate::types::CoinState::new_with_mint(mint.clone()));
+                            added += 1;
+                        }
+                    }
+                    if added > 0 {
+                        println!("🌱 Seed drain: {} new mints", added);
+                        // Clear after loading
+                        let _ = std::fs::write(seed_path, "[]");
+                    }
+                }
+            }
+        }
+
         // Drain WebSocket new mints into coins
         {
             let mut new_mints = ws_sink.lock().unwrap();
