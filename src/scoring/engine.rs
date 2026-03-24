@@ -155,6 +155,17 @@ pub async fn score_and_manage(
             continue;
         }
 
+        // ── LATE ENTRY GUARD v2 ───────────────────────────────────────
+        // Data shows 76% of losses are coins we called after they already pumped.
+        // If 1h change > 150% AND velocity is flat/declining, we're buying bags.
+        // Exception: very new coins (<10 min) can have huge 1h% from initial pump
+        // and still have more to go — only apply to established coins.
+        let established = coin_age_secs > 600; // >10 min old
+        if established && trend.price_change_1h > 150.0 && trend.fdv_velocity_pct < 2.0 {
+            skip_velocity += 1;
+            continue;
+        }
+
         // Already peaked — skip only if 200%+ in 1h AND no recent velocity AND high FDV
         // Don't skip early stage coins that happen to have moved a lot
         if trend.price_change_1h > 200.0 && trend.fdv_velocity_pct < 0.5 && fdv > 50_000.0 {
@@ -188,10 +199,14 @@ pub async fn score_and_manage(
             else { 0 };
         score += recency_boost;
 
-        // Penalize coins that have already had their big pump
-        // These are late entries — the move is done
-        if trend.price_change_1h > 100.0 { score -= 150; }
-        if trend.price_change_1h > 150.0 { score -= 150; } // -300 total for 150%+
+        // ── LATE PUMP PENALTY (v2 tuned) ──────────────────────────────
+        // Data: 76% of dead calls were already-pumped coins.
+        // Heavily penalize coins that moved a lot in the last hour.
+        // The pump already happened — we're looking at exhaust.
+        if trend.price_change_1h > 50.0  { score -= 100; }
+        if trend.price_change_1h > 100.0 { score -= 200; }
+        if trend.price_change_1h > 150.0 { score -= 300; } // -600 total = almost certainly skip
+        if trend.price_change_1h > 300.0 { score -= 400; } // -1000 total = definitely skip
 
         // 1. Primary signal — SNIPE/CONVICTION from psychic-spoon logic
         if trend.early_snipe {
