@@ -119,6 +119,16 @@ pub async fn run(cfg: Config) {
         if !calls.is_empty() {
             let called_mints: Vec<String> = calls.iter().map(|c| c.mint.clone()).collect();
             market.poll_called(&called_mints).await;
+
+            // Update paper wallet trades with latest prices
+            for call in &calls {
+                let trend = crate::market::cache::market_trend(&market, &call.mint, &cfg);
+                if let Some(fdv) = trend.last_fdv {
+                    if fdv > 0.0 {
+                        crate::trading::paper_wallets::update_paper_trades(&call.mint, fdv);
+                    }
+                }
+            }
         }
 
         // Prune stale coins — active coins ride 2 hours, inactive cleared after 10 min
@@ -175,6 +185,12 @@ pub async fn run(cfg: Config) {
                         break;
                     }
                 }
+
+                // Open paper trades for all 5 strategy wallets
+                crate::trading::paper_wallets::open_paper_trades(
+                    &call.mint,
+                    call.fdv_at_call,
+                );
 
                 // Telegram alert — details first, then raw CA for easy copy
                 if !cfg.telegram_bot_token.is_empty() {
