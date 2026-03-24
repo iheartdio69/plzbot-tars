@@ -26,6 +26,8 @@ pub async fn run(cfg: Config) {
     let mut shadow: ShadowMap = HashMap::new();
     let mut rug_tracker: HashMap<String, WalletStrike> = load_rug_tracker();
     let mut missed_tracker = MissedCallTracker::load();
+    let mut live_positions: Vec<crate::trading::position::Position> =
+        crate::trading::position::load_positions();
     apply_to_reputation(&rug_tracker);
     println!("🗂️  Rug tracker loaded: {} wallets", rug_tracker.len());
 
@@ -131,6 +133,81 @@ pub async fn run(cfg: Config) {
             }
         }
 
+        // ── LIVE POSITION EXIT MONITOR ────────────────────────────────
+        if cfg.tars_enabled && !live_positions.is_empty() {
+            let mut positions_changed = false;
+            let executor = crate::trading::execution::TradeExecutor::new(
+                crate::trading::wallet::TradingWallet::load_from_env()
+                    .expect("TARS_PRIVATE_KEY required"),
+                cfg.helius_rpc_url.clone(),
+            );
+
+            for pos in live_positions.iter_mut() {
+                if pos.status == crate::trading::position::PositionStatus::Closed {
+                    continue;
+                }
+                let trend = crate::market::cache::market_trend(&market, &pos.mint, &cfg);
+                let current_fdv = match trend.last_fdv {
+                    Some(f) if f > 0.0 => f,
+                    _ => continue,
+                };
+
+                // Update peak
+                if current_fdv > pos.peak_fdv {
+                    pos.peak_fdv = current_fdv;
+                    pos.peak_mult = current_fdv / pos.entry_fdv;
+                }
+
+                match pos.check_thresholds(current_fdv) {
+                    crate::trading::position::PositionAction::ExitFull(reason) => {
+                        println!("  🔴 EXIT {} | {} | mult {:.2}x",
+                            &pos.mint[..8], reason, pos.peak_mult);
+                        // Sell 100%
+                        match executor.sell(&pos.mint, pos.tokens_held, 100.0).await {
+                            Ok(sig) => {
+                                pos.outcome = Some(if pos.peak_mult >= 1.5 { "WIN".into() } else { "LOSS".into() });
+                                pos.status = crate::trading::position::PositionStatus::Closed;
+                                positions_changed = true;
+                                if !cfg.telegram_bot_token.is_empty() {
+                                    let icon = if pos.peak_mult >= 1.5 { "✅" } else { "❌" };
+                                    crate::telegram::send_message(
+                                        &cfg.telegram_bot_token,
+                                        &cfg.telegram_chat_id,
+                                        &format!("{} <b>SOLD</b> {:.2}x\n{}\n<code>{}</code>",
+                                            icon, pos.peak_mult, reason, &sig[..16]),
+                                    ).await;
+                                }
+                            }
+                            Err(e) => println!("  ❌ SELL FAILED: {}", e),
+                        }
+                    }
+                    crate::trading::position::PositionAction::ExitPartial(pct, reason) => {
+                        println!("  🟡 PARTIAL EXIT {:.0}% {} | {}", pct, &pos.mint[..8], reason);
+                        match executor.sell(&pos.mint, pos.tokens_held, pct).await {
+                            Ok(sig) => {
+                                pos.tp1_triggered = true;
+                                positions_changed = true;
+                                if !cfg.telegram_bot_token.is_empty() {
+                                    crate::telegram::send_message(
+                                        &cfg.telegram_bot_token,
+                                        &cfg.telegram_chat_id,
+                                        &format!("🟡 <b>PARTIAL SELL {:.0}%</b> {:.2}x\n{}\n<code>{}</code>",
+                                            pct, pos.peak_mult, reason, &sig[..16]),
+                                    ).await;
+                                }
+                            }
+                            Err(e) => println!("  ❌ PARTIAL SELL FAILED: {}", e),
+                        }
+                    }
+                    crate::trading::position::PositionAction::Hold => {}
+                }
+            }
+
+            if positions_changed {
+                crate::trading::position::save_positions(&live_positions);
+            }
+        }
+
         // Prune stale coins — active coins ride 2 hours, inactive cleared after 10 min
         coins.retain(|_, c| {
             if c.active { c.first_seen.elapsed().as_secs() < 7200 } // 2hr for active
@@ -217,10 +294,7 @@ pub async fn run(cfg: Config) {
                 }
 
                 // ── DIP SNIPER ENTRY ──────────────────────────────────
-                // Wait for a pullback before executing the buy.
-                // Rockets (>25%/min velocity) bypass this and buy immediately.
-                // Timeout after 60s — enter at market rather than miss the whole move.
-                if std::env::var("TARS_ENABLED").unwrap_or_default().to_lowercase() == "true" {
+                if cfg.tars_enabled {
                     let trend = crate::market::cache::market_trend(&market, &call.mint, &cfg);
                     let call_fdv = trend.last_fdv.unwrap_or(call.fdv_at_call);
                     let call_velocity = trend.fdv_velocity_pct;
@@ -236,7 +310,46 @@ pub async fn run(cfg: Config) {
                     match entry {
                         crate::trading::entry::EntryDecision::Enter { fdv, reason } => {
                             println!("  ✅ ENTRY: {} | FDV ${:.0} | {}", &call.mint[..8], fdv, reason);
-                            // TODO: plug executor here when TARS_ENABLED goes live
+
+                            // Execute the buy via Jupiter
+                            match crate::trading::execution::TradeExecutor::new(
+                                crate::trading::wallet::TradingWallet::load_from_env()
+                                    .expect("TARS_PRIVATE_KEY required when TARS_ENABLED=true"),
+                                cfg.helius_rpc_url.clone(),
+                            ).buy(&call.mint, cfg.tars_sol_tx).await {
+                                Ok(sig) => {
+                                    println!("  🚀 BUY executed: {} sig:{}", &call.mint[..8], &sig[..12]);
+
+                                    // Open live position for exit monitoring
+                                    let pos = crate::trading::position::Position::new(
+                                        call.mint.clone(),
+                                        fdv,
+                                        fdv,
+                                        cfg.tars_sol_tx,
+                                    );
+                                    live_positions.push(pos);
+                                    crate::trading::position::save_positions(&live_positions);
+
+                                    if !cfg.telegram_bot_token.is_empty() {
+                                        crate::telegram::send_message(
+                                            &cfg.telegram_bot_token,
+                                            &cfg.telegram_chat_id,
+                                            &format!("🚀 <b>BOUGHT</b>\n<code>{}</code>\nEntry FDV: ${:.0}\nReason: {}\nSig: <code>{}</code>",
+                                                call.mint, fdv, reason, &sig[..16]),
+                                        ).await;
+                                    }
+                                }
+                                Err(e) => {
+                                    println!("  ❌ BUY FAILED: {} — {}", &call.mint[..8], e);
+                                    if !cfg.telegram_bot_token.is_empty() {
+                                        crate::telegram::send_message(
+                                            &cfg.telegram_bot_token,
+                                            &cfg.telegram_chat_id,
+                                            &format!("❌ Buy failed: {}\n{}", &call.mint[..12], e),
+                                        ).await;
+                                    }
+                                }
+                            }
                         }
                         crate::trading::entry::EntryDecision::Skip { reason } => {
                             println!("  ❌ SKIP ENTRY: {} | {}", &call.mint[..8], reason);

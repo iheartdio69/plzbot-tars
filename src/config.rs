@@ -66,7 +66,9 @@ pub struct Config {
     pub win_tx_mult: f64,
     pub mid_wallet_mult: f64,
     pub mid_tx_mult: f64,
-    pub tars_sl_pct: f64,  // stop loss % from entry
+    pub tars_sl_pct: f64,
+    pub tars_enabled: bool,  // master switch — must be true to execute real trades
+    pub tars_sol_tx: f64,    // SOL per trade when live
 
     pub telegram_bot_token: String,
     pub telegram_chat_id: String,
@@ -190,6 +192,8 @@ pub fn load_config() -> Config {
         mid_wallet_mult: get_f64("MID_WALLET_MULT", 1.1),
         mid_tx_mult: get_f64("MID_TX_MULT", 1.3),
         tars_sl_pct: get_f64("TARS_SL_PCT", 0.30),
+        tars_enabled: get_bool("TARS_ENABLED", false),
+        tars_sol_tx: get_f64("TARS_SOL_TX", 0.25),
 
         telegram_bot_token: getenv("TELEGRAM_BOT_TOKEN", ""),
         telegram_chat_id: getenv("TELEGRAM_CHAT_ID", ""),

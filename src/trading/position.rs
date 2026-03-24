@@ -14,6 +14,9 @@ pub struct Position {
     pub tp1_triggered: bool,
     pub tp2_triggered: bool,
     pub status: PositionStatus,
+    pub outcome: Option<String>,
+    pub peak_fdv: f64,
+    pub peak_mult: f64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -51,6 +54,9 @@ impl Position {
             tp1_triggered: false,
             tp2_triggered: false,
             status: PositionStatus::Open,
+            outcome: None,
+            peak_fdv: entry_fdv,
+            peak_mult: 1.0,
         }
     }
 
