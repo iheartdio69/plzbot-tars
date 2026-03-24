@@ -14,12 +14,35 @@ pub async fn send_message(token: &str, chat_id: &str, text: &str) {
         .await;
 }
 
+async fn fetch_token_name(mint: &str) -> String {
+    let url = format!("https://api.dexscreener.com/latest/dex/tokens/{}", mint);
+    if let Ok(resp) = reqwest::Client::new().get(&url).timeout(std::time::Duration::from_secs(4)).send().await {
+        if let Ok(body) = resp.json::<serde_json::Value>().await {
+            if let Some(pairs) = body.get("pairs").and_then(|p| p.as_array()) {
+                for pair in pairs {
+                    if pair.get("chainId").and_then(|c| c.as_str()) == Some("solana") {
+                        let name   = pair.get("baseToken").and_then(|t| t.get("name")).and_then(|n| n.as_str()).unwrap_or("");
+                        let symbol = pair.get("baseToken").and_then(|t| t.get("symbol")).and_then(|s| s.as_str()).unwrap_or("");
+                        if !name.is_empty() {
+                            return format!("{} (${symbol})", name);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    mint[..12].to_string() // fallback to shortened mint
+}
+
 pub async fn send_call_alert(token: &str, chat_id: &str, call: &CallRecord, coin_type: &str, fdv: f64, liq: f64, vel: f64, bsr: f64, price_change_1h: f64, holders: u64, score: i32) {
     let url = format!("https://api.telegram.org/bot{}/sendMessage", token);
 
+    let name = fetch_token_name(&call.mint).await;
+
     let text = format!(
-        "🎯 <b>{}</b> | score {}\n\nFDV: <b>${}</b> | LIQ: ${}\nVel: {:.1}%/min | 1h: {:+.0}%\nBSR: {:.1}x | Holders: {}\n\n<code>{}</code>",
+        "🎯 <b>{}</b> | <b>{}</b> | score {}\n\nFDV: <b>${}</b> | LIQ: ${}\nVel: {:.1}%/min | 1h: {:+.0}%\nBSR: {:.1}x | Holders: {}\n\n<code>{}</code>",
         coin_type,
+        name,
         score,
         fmt_usd(fdv),
         fmt_usd(liq),
