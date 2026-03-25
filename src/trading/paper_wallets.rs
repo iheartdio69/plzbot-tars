@@ -19,10 +19,13 @@ pub struct WalletStrategy {
     pub time_stop_mins: Option<u64>,
     pub tp_levels: Vec<f64>,
     pub tp_exit_pcts: Vec<f64>,
-    /// Only enter if entry FDV is below this (None = no limit)
     pub max_entry_fdv: Option<f64>,
-    /// Only enter if entry FDV is above this (None = no limit)
     pub min_entry_fdv: Option<f64>,
+    /// Trailing profit lock: (trigger_mult, floor_mult, sell_pct)
+    /// When coin hits trigger_mult, set a floor at floor_mult.
+    /// If price drops back to floor, sell sell_pct% to lock profit.
+    /// Example: (3.0, 2.0, 40.0) = hit 3x → protect 2x → sell 40% if it drops to 2x
+    pub trailing_locks: Vec<(f64, f64, f64)>,
 }
 
 pub fn all_strategies() -> Vec<WalletStrategy> {
@@ -35,32 +38,42 @@ pub fn all_strategies() -> Vec<WalletStrategy> {
         // 🌙 GUT_MOON — Shoot for the big x's. Never sells early.
         // Half the position rides to 10x/20x — this is the moonshot wallet.
         // When it hits, it more than pays for all the losses.
+        // 🌙 GUT_MOON — Moonshot half. Trailing lock protects big wins.
+        // Ride to 10x/20x, but if we hit 5x and it reverses to 3x, lock 30%.
         WalletStrategy {
             name: "GUT_MOON",
-            sol_size: 0.125, // half size — pairs with GUT_LOCK
+            sol_size: 0.125,
             stop_loss_pct: None,
             time_stop_mins: None,
             tp_levels: vec![10.0, 20.0],
             tp_exit_pcts: vec![50.0, 50.0],
             max_entry_fdv: None,
             min_entry_fdv: None,
+            trailing_locks: vec![
+                // (trigger, floor, sell_pct)
+                (3.0, 1.8, 30.0),  // hit 3x → protect 1.8x → sell 30% if reverses
+                (5.0, 3.0, 30.0),  // hit 5x → protect 3x → sell 30% if reverses
+                (10.0, 6.0, 30.0), // hit 10x → protect 6x → sell 30% if reverses
+            ],
         },
 
-        // 💰 GUT_LOCK — Take profit on the way up. Keeps the wallet funded.
-        // Sells 40% at 2x (house money), 35% at 4x, lets 25% ride.
-        // Pairs with GUT_MOON — together they enter every call at 0.25 SOL total.
+        // 💰 GUT_LOCK — Profit lock half. TPs + trailing floors.
         WalletStrategy {
             name: "GUT_LOCK",
-            sol_size: 0.125, // half size — pairs with GUT_MOON
+            sol_size: 0.125,
             stop_loss_pct: None,
             time_stop_mins: None,
             tp_levels: vec![2.0, 4.0, 15.0],
-            tp_exit_pcts: vec![40.0, 35.0, 25.0], // lock profit early, moonbag on rest
+            tp_exit_pcts: vec![40.0, 35.0, 25.0],
             max_entry_fdv: None,
             min_entry_fdv: None,
+            trailing_locks: vec![
+                (2.0, 1.5, 0.0),   // hit 2x → floor at 1.5x (TP handles the sell)
+                (4.0, 2.5, 20.0),  // hit 4x → if drops to 2.5x, sell extra 20%
+            ],
         },
 
-        // 🎯 GUT_STRICT — Tighter entry, same GUT philosophy
+        // 🎯 GUT_STRICT — Tight entry, trailing protection
         WalletStrategy {
             name: "GUT_STRICT",
             sol_size: 0.25,
@@ -70,11 +83,14 @@ pub fn all_strategies() -> Vec<WalletStrategy> {
             tp_exit_pcts: vec![50.0, 50.0],
             max_entry_fdv: Some(40_000.0),
             min_entry_fdv: None,
+            trailing_locks: vec![
+                (3.0, 2.0, 30.0),
+                (5.0, 3.0, 30.0),
+                (10.0, 6.0, 25.0),
+            ],
         },
 
-        // 🐳 WHALE — Bigger size on best signals only
-        // 0.5 SOL on coins that hit score 1000+ at FDV < $30k
-        // Higher risk, higher reward — for when we're confident
+        // 🐳 WHALE — Biggest bets, best protection
         WalletStrategy {
             name: "WHALE",
             sol_size: 0.5,
@@ -82,45 +98,45 @@ pub fn all_strategies() -> Vec<WalletStrategy> {
             time_stop_mins: None,
             tp_levels: vec![5.0, 15.0],
             tp_exit_pcts: vec![50.0, 50.0],
-            max_entry_fdv: Some(30_000.0), // only very early entries
+            max_entry_fdv: Some(30_000.0),
             min_entry_fdv: None,
+            trailing_locks: vec![
+                (2.0, 1.5, 20.0),  // first protection — hit 2x, protect 1.5x
+                (3.0, 2.0, 20.0),  // hit 3x, protect 2x
+                (5.0, 3.5, 20.0),  // hit 5x, protect 3.5x (TP fires at 5x anyway)
+            ],
         },
 
-        // 🎟️ MOONBAG — Lottery ticket. Tiny size, never sells until 20x.
-        // V2 lesson: DIAMOND's 50x target was too high to ever trigger
-        // V3: lower first TP to 20x so it actually realizes some gains
+        // 🎟️ MOONBAG — Pure lottery, minimal protection
         WalletStrategy {
             name: "MOONBAG",
-            sol_size: 0.05, // tiny — survives many losses
+            sol_size: 0.05,
             stop_loss_pct: None,
             time_stop_mins: None,
             tp_levels: vec![20.0, 50.0],
             tp_exit_pcts: vec![50.0, 50.0],
             max_entry_fdv: None,
             min_entry_fdv: None,
+            trailing_locks: vec![
+                (5.0, 3.0, 20.0),   // at least protect something if it runs
+                (10.0, 7.0, 20.0),
+            ],
         },
 
-        // 🔫 SNIPER_V2 — Sub-$10k FDV sniper with longer time window
-        // V2: 30min time stop was too tight. Raised to 2hr.
+        // 🔫 SNIPER_V2
         WalletStrategy {
             name: "SNIPER_V2",
             sol_size: 0.5,
-            stop_loss_pct: None, // no price stop — v2 lesson
-            time_stop_mins: Some(120), // 2hr window (was 30min)
+            stop_loss_pct: None,
+            time_stop_mins: Some(120),
             tp_levels: vec![3.0, 10.0],
             tp_exit_pcts: vec![50.0, 50.0],
             max_entry_fdv: Some(10_000.0),
             min_entry_fdv: None,
-        },
-        WalletStrategy {
-            name: "SCALPER",
-            sol_size: 0.75,
-            stop_loss_pct: Some(0.20),
-            time_stop_mins: None,
-            tp_levels: vec![1.5, 2.0],
-            tp_exit_pcts: vec![50.0, 50.0],
-            max_entry_fdv: None,
-            min_entry_fdv: None,
+            trailing_locks: vec![
+                (2.0, 1.5, 25.0),
+                (3.0, 2.0, 0.0),  // TP fires at 3x anyway
+            ],
         },
     ]
 }
@@ -274,10 +290,39 @@ pub fn update_paper_trades(mint: &str, current_fdv: f64) {
                 trade.sol_out += trade.sol_in * exit_pct * mult;
                 changed = true;
 
-                // If all TPs hit, close
                 if trade.tps_hit.len() == strat.tp_levels.len() {
                     close_trade(trade, mult, "ALL_TP_HIT");
                 }
+            }
+        }
+
+        // ── TRAILING PROFIT LOCK ──────────────────────────────────────
+        // When coin hits a trigger mult, set a floor.
+        // If price drops back to the floor, sell sell_pct% to lock profit.
+        // Stored as negative values in tps_hit to distinguish from TPs.
+        for &(trigger, floor, sell_pct) in &strat.trailing_locks {
+            let lock_key = -(trigger as i64) as f64; // negative = trailing lock marker
+            let floor_key = -(floor as i64 * 100 + 1) as f64; // unique floor marker
+
+            // Activate lock when trigger is hit
+            if mult >= trigger && !trade.tps_hit.contains(&lock_key) {
+                trade.tps_hit.push(lock_key);
+                changed = true;
+            }
+
+            // Fire the floor sell if lock is active and price dropped to floor
+            if trade.tps_hit.contains(&lock_key)
+                && mult <= floor
+                && !trade.tps_hit.contains(&floor_key)
+                && sell_pct > 0.0
+                && trade.status != TradeStatus::Closed
+            {
+                trade.tps_hit.push(floor_key);
+                let exit_pct = sell_pct / 100.0;
+                trade.sol_out += trade.sol_in * exit_pct * mult;
+                changed = true;
+                println!("  🔒 TRAIL LOCK {} | triggered {:.1}x floor → sold {:.0}% at {:.2}x",
+                    &trade.mint[..8], floor, sell_pct, mult);
             }
         }
     }
