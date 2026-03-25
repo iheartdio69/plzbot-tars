@@ -79,6 +79,8 @@ async fn send_tx(tx_bytes: &[u8], private_key: &str, rpc_url: &str) -> Result<St
 }
 
 /// Buy `sol_amount` SOL worth of `token_mint`
+/// Tries PumpPortal first (lower fees for bonding curve coins)
+/// Falls back to Jupiter automatically for graduated/Raydium coins
 pub async fn buy(
     public_key: &str,
     private_key: &str,
@@ -94,8 +96,8 @@ pub async fn buy(
         "mint": token_mint,
         "amount": sol_amount,
         "denominatedInSol": "true",
-        "slippage": 15,
-        "priorityFee": 0.00005,
+        "slippage": 25,
+        "priorityFee": 0.0002,
         "pool": "pump"
     });
 
@@ -108,15 +110,17 @@ pub async fn buy(
         client.post(PUMPPORTAL_URL).json(&body).send()
     ).await??;
 
-    if !resp.status().is_success() {
-        return Err(anyhow::anyhow!("PumpPortal buy error: {}", resp.status()));
+    if resp.status().is_success() {
+        let tx_bytes = resp.bytes().await?;
+        let signature = send_tx(&tx_bytes, private_key, rpc_url).await?;
+        println!("  🚀 PP BUY {} {} SOL sig:{}", &token_mint[..8], sol_amount, &signature[..8]);
+        return Ok(signature);
     }
 
-    let tx_bytes = resp.bytes().await?;
-    let signature = send_tx(&tx_bytes, private_key, rpc_url).await?;
-
-    println!("  🚀 PP BUY {} {} SOL sig:{}", &token_mint[..8], sol_amount, &signature[..8]);
-    Ok(signature)
+    // PumpPortal failed (400 = coin graduated to Raydium) — fall back to Jupiter
+    println!("  ↪️  PP failed ({}), trying Jupiter...", resp.status());
+    let sig = crate::trading::jupiter::buy(public_key, private_key, token_mint, sol_amount, rpc_url).await?;
+    Ok(sig)
 }
 
 /// Sell `percent`% of held tokens for `token_mint`
@@ -152,13 +156,15 @@ pub async fn sell(
         client.post(PUMPPORTAL_URL).json(&body).send()
     ).await??;
 
-    if !resp.status().is_success() {
-        return Err(anyhow::anyhow!("PumpPortal sell error: {}", resp.status()));
+    if resp.status().is_success() {
+        let tx_bytes = resp.bytes().await?;
+        let signature = send_tx(&tx_bytes, private_key, rpc_url).await?;
+        println!("  💰 PP SELL {}% {} sig:{}", percent, &token_mint[..8], &signature[..8]);
+        return Ok(signature);
     }
 
-    let tx_bytes = resp.bytes().await?;
-    let signature = send_tx(&tx_bytes, private_key, rpc_url).await?;
-
-    println!("  💰 PP SELL {}% {} sig:{}", percent, &token_mint[..8], &signature[..8]);
-    Ok(signature)
+    // Fall back to Jupiter for graduated coins
+    println!("  ↪️  PP sell failed, trying Jupiter...");
+    let sig = crate::trading::jupiter::sell(public_key, private_key, token_mint, percent, rpc_url).await?;
+    Ok(sig)
 }
