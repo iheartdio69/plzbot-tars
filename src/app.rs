@@ -312,8 +312,8 @@ pub async fn run(cfg: Config) {
                         crate::trading::entry::EntryDecision::Enter { fdv, reason } => {
                             println!("  ✅ ENTRY: {} | FDV ${:.0} | {}", &call.mint[..8], fdv, reason);
 
-                            // ── WALLET 2: GUT_LOCK — buy simultaneously ──
-                            if !cfg.tars_wallet2_key.is_empty() {
+                            // ── WALLET 2: WHALE — only enters sub-$30k FDV ──
+                            if !cfg.tars_wallet2_key.is_empty() && call.fdv_at_call <= 30_000.0 {
                                 match crate::trading::pumpportal::buy(
                                     &cfg.tars_wallet2_pubkey,
                                     &cfg.tars_wallet2_key,
@@ -322,7 +322,7 @@ pub async fn run(cfg: Config) {
                                     cfg.tars_sol_tx,
                                     &cfg.helius_rpc_url,
                                 ).await {
-                                    Ok(sig) => println!("  🔒 W2 GUT_LOCK BUY {} sig:{}", &call.mint[..8], &sig[..12]),
+                                    Ok(sig) => println!("  🐳 W2 WHALE BUY {} FDV:${:.0} sig:{}", &call.mint[..8], call.fdv_at_call, &sig[..12]),
                                     Err(e) => println!("  ❌ W2 BUY FAILED: {}", e),
                                 }
                             }
