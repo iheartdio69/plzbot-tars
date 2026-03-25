@@ -113,8 +113,13 @@ const server = http.createServer((req, res) => {
   }
 
   if (req.url.startsWith('/api/wallet-balance')) {
-    const PUBKEY = process.env.TARS_WALLET_PUBKEY || require('fs').readFileSync(require('path').join(BOT_DATA, '..', '.env'), 'utf8').match(/TARS_WALLET_PUBKEY=(.+)/)?.[1]?.trim() || '';
-    const RPC = `https://mainnet.helius-rpc.com/?api-key=${process.env.HELIUS_API_KEY || 'bba3e681-5664-434e-a66c-75ff2f8dba24'}`;
+    let PUBKEY = '';
+    try {
+      const envContent = fs.readFileSync(ENV_FILE, 'utf8');
+      const match = envContent.match(/^TARS_WALLET_PUBKEY=(.+)$/m);
+      if (match) PUBKEY = match[1].trim();
+    } catch (_) {}
+    const RPC = 'https://mainnet.helius-rpc.com/?api-key=bba3e681-5664-434e-a66c-75ff2f8dba24';
     const https = require('https');
     const url = new URL(RPC);
     const body = JSON.stringify({ jsonrpc:'2.0', id:1, method:'getBalance', params:[PUBKEY] });

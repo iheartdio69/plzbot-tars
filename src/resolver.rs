@@ -60,10 +60,12 @@ pub fn resolve_calls(
         // Still riding = hasn't peaked or died yet
 
         let liq_dead = liq < 500.0 && elapsed > 600;
-        let hard_sl = current_mult <= (1.0 - cfg.tars_sl_pct);  // -30% from entry
-        let stale = elapsed >= cfg.resolve_t15_secs && current_mult < 1.1;
-        let slow_bleed = elapsed >= 3600 && current_mult < 0.85;
-        let max_time = elapsed >= 43200; // 12hr max hold
+        // No hard stop loss — meme coins dip 40-50% before 10x-ing
+        // Only exit on: liquidity pulled (rug), total death (<10% of entry), or time
+        let hard_sl = current_mult <= 0.10; // only exit if 90%+ gone = rug
+        let stale = elapsed >= cfg.resolve_t15_secs && current_mult < 1.05; // 2hr, barely moved
+        let slow_bleed = elapsed >= 7200 && current_mult < 0.5; // 4hr and down 50%
+        let max_time = elapsed >= 86400; // 24hr max hold (was 12hr)
 
         // WIN conditions — based on peak, not current price
         let is_win = peak_mult >= 2.0;    // peaked at 2x = WIN (could have doubled)
