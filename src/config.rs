@@ -72,6 +72,10 @@ pub struct Config {
     pub tars_private_key: String,
     pub tars_wallet_pubkey: String,
     pub pumpportal_api_key: String,
+    // Wallet 2 — GUT_LOCK strategy
+    pub tars_wallet2_key: String,
+    pub tars_wallet2_pubkey: String,
+    pub tars_wallet2_api_key: String,
 
     pub telegram_bot_token: String,
     pub telegram_chat_id: String,
@@ -200,6 +204,9 @@ pub fn load_config() -> Config {
         tars_private_key: getenv("TARS_PRIVATE_KEY", ""),
         tars_wallet_pubkey: getenv("TARS_WALLET_PUBKEY", ""),
         pumpportal_api_key: getenv("PUMPPORTAL_API_KEY", ""),
+        tars_wallet2_key: getenv("TARS_WALLET2_KEY", ""),
+        tars_wallet2_pubkey: getenv("TARS_WALLET2_PUBKEY", ""),
+        tars_wallet2_api_key: getenv("TARS_WALLET2_API_KEY", ""),
 
         telegram_bot_token: getenv("TELEGRAM_BOT_TOKEN", ""),
         telegram_chat_id: getenv("TELEGRAM_CHAT_ID", ""),

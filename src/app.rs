@@ -312,7 +312,22 @@ pub async fn run(cfg: Config) {
                         crate::trading::entry::EntryDecision::Enter { fdv, reason } => {
                             println!("  ✅ ENTRY: {} | FDV ${:.0} | {}", &call.mint[..8], fdv, reason);
 
-                            // Execute the buy via PumpPortal
+                            // ── WALLET 2: GUT_LOCK — buy simultaneously ──
+                            if !cfg.tars_wallet2_key.is_empty() {
+                                match crate::trading::pumpportal::buy(
+                                    &cfg.tars_wallet2_pubkey,
+                                    &cfg.tars_wallet2_key,
+                                    &cfg.tars_wallet2_api_key,
+                                    &call.mint,
+                                    cfg.tars_sol_tx,
+                                    &cfg.helius_rpc_url,
+                                ).await {
+                                    Ok(sig) => println!("  🔒 W2 GUT_LOCK BUY {} sig:{}", &call.mint[..8], &sig[..12]),
+                                    Err(e) => println!("  ❌ W2 BUY FAILED: {}", e),
+                                }
+                            }
+
+                            // ── WALLET 1: GUT_MOON — main buy ────────────
                             match crate::trading::pumpportal::buy(
                                 &cfg.tars_wallet_pubkey,
                                 &cfg.tars_private_key,

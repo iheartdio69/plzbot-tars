@@ -113,33 +113,38 @@ const server = http.createServer((req, res) => {
   }
 
   if (req.url.startsWith('/api/wallet-balance')) {
-    let PUBKEY = '';
+    let PUBKEY = '', PUBKEY2 = '';
     try {
       const envContent = fs.readFileSync(ENV_FILE, 'utf8');
-      const match = envContent.match(/^TARS_WALLET_PUBKEY=(.+)$/m);
-      if (match) PUBKEY = match[1].trim();
+      const m1 = envContent.match(/^TARS_WALLET_PUBKEY=(.+)$/m);
+      const m2 = envContent.match(/^TARS_WALLET2_PUBKEY=(.+)$/m);
+      if (m1) PUBKEY = m1[1].trim();
+      if (m2) PUBKEY2 = m2[1].trim();
     } catch (_) {}
     const RPC = 'https://mainnet.helius-rpc.com/?api-key=bba3e681-5664-434e-a66c-75ff2f8dba24';
     const https = require('https');
     const url = new URL(RPC);
     const body = JSON.stringify({ jsonrpc:'2.0', id:1, method:'getBalance', params:[PUBKEY] });
     const opts = { hostname: url.hostname, path: url.pathname + url.search, method: 'POST', headers: { 'Content-Type': 'application/json' } };
-    const req2 = https.request(opts, r2 => {
-      let d = '';
-      r2.on('data', c => d += c);
-      r2.on('end', () => {
-        try {
-          const sol = (JSON.parse(d)?.result?.value || 0) / 1e9;
-          res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ sol, pubkey: PUBKEY }));
-        } catch {
-          res.writeHead(200); res.end(JSON.stringify({ sol: 0 }));
-        }
+    // Fetch both wallets
+    const fetchBal = (pubkey) => new Promise(resolve => {
+      if (!pubkey) return resolve(0);
+      const b = JSON.stringify({ jsonrpc:'2.0', id:1, method:'getBalance', params:[pubkey] });
+      const r2 = https.request(opts, res2 => {
+        let d = '';
+        res2.on('data', c => d += c);
+        res2.on('end', () => {
+          try { resolve((JSON.parse(d)?.result?.value || 0) / 1e9); } catch { resolve(0); }
+        });
       });
+      r2.on('error', () => resolve(0));
+      r2.write(b); r2.end();
     });
-    req2.on('error', () => { res.writeHead(200); res.end(JSON.stringify({ sol: 0 })); });
-    req2.write(body);
-    req2.end();
+
+    Promise.all([fetchBal(PUBKEY), fetchBal(PUBKEY2)]).then(([sol1, sol2]) => {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ sol: sol1, sol2, pubkey: PUBKEY, pubkey2: PUBKEY2 }));
+    });
     return;
   }
 

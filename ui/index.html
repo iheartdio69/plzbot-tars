@@ -471,8 +471,12 @@
       <span class="status-value" id="stat-tars-enabled" style="color:var(--loss)">OFF</span>
     </div>
     <div class="status-item">
-      <span class="status-label">Wallet</span>
+      <span class="status-label">W1 🌙Moon</span>
       <span class="status-value" id="stat-wallet-usd" style="color:var(--accent)">$—</span>
+    </div>
+    <div class="status-item">
+      <span class="status-label">W2 💰Lock</span>
+      <span class="status-value" id="stat-wallet2-usd" style="color:var(--accent2)">$—</span>
     </div>
     <span class="clock" id="clock">—</span>
   </div>
@@ -881,7 +885,8 @@ function renderPerfBar(d) {
   card('perf-open',    'Open',         (d.open||0) + ' positions', 'neutral');
   card('perf-best',    'Best Call',    d.bestMult > 0 ? (d.bestMult).toFixed(1)+'x' : '—', 'positive');
   card('perf-unrealized', 'Unrealized', (unrUsd>=0?'+':'')+'$'+Math.abs(unrUsd).toFixed(2), unrClass);
-  card('perf-wallet',  'Wallet',       '$' + ((walletSol||0)*solPrice).toFixed(2), (walletSol||0) > 1.5 ? 'positive' : 'negative');
+  const combined = ((walletSol||0) + (wallet2Sol||0)) * solPrice;
+  card('perf-wallet', 'Total Funds', '$' + combined.toFixed(2), combined > 200 ? 'positive' : combined > 100 ? 'neutral' : 'negative');
 }
 
 // ── MAIN LOOP ─────────────────────────────────────────────
@@ -889,7 +894,7 @@ setInterval(() => {
   document.getElementById('clock').textContent = clock();
 }, 1000);
 
-let walletSol = 0;
+let walletSol = 0, wallet2Sol = 0;
 
 async function fetchWalletBalance() {
   try {
@@ -900,11 +905,18 @@ async function fetchWalletBalance() {
     const solData = await solRes.json();
     const priceData = await priceRes.json();
     walletSol = solData.sol || 0;
+    wallet2Sol = solData.sol2 || 0;
     solPrice = priceData.price || 130;
-    const usd = (walletSol * solPrice).toFixed(2);
-    const el = document.getElementById('stat-wallet-usd');
-    el.textContent = '$' + usd;
-    el.style.color = walletSol > 1.0 ? 'var(--accent)' : walletSol > 0.5 ? 'var(--warn)' : 'var(--loss)';
+
+    const el1 = document.getElementById('stat-wallet-usd');
+    el1.textContent = '$' + (walletSol * solPrice).toFixed(2);
+    el1.style.color = walletSol > 1.0 ? 'var(--accent)' : walletSol > 0.5 ? 'var(--warn)' : 'var(--loss)';
+
+    const el2 = document.getElementById('stat-wallet2-usd');
+    if (el2) {
+      el2.textContent = '$' + (wallet2Sol * solPrice).toFixed(2);
+      el2.style.color = wallet2Sol > 0.8 ? 'var(--accent2)' : wallet2Sol > 0.3 ? 'var(--warn)' : 'var(--loss)';
+    }
   } catch (_) {}
 }
 
