@@ -32,12 +32,12 @@ pub fn all_strategies() -> Vec<WalletStrategy> {
         // Key insight: stop losses kill meme coin profits. No stops = wins.
         // ══════════════════════════════════════════════════════════════
 
-        // 🎰 GUT — Proven winner. No stop, ride to moon or zero.
-        // V2 result: 100% WR, +4.91 SOL realized, +11.45 unrealized, 20.6x best
-        // DO NOT MODIFY — this is the benchmark
+        // 🌙 GUT_MOON — Shoot for the big x's. Never sells early.
+        // Half the position rides to 10x/20x — this is the moonshot wallet.
+        // When it hits, it more than pays for all the losses.
         WalletStrategy {
-            name: "GUT",
-            sol_size: 0.25,
+            name: "GUT_MOON",
+            sol_size: 0.125, // half size — pairs with GUT_LOCK
             stop_loss_pct: None,
             time_stop_mins: None,
             tp_levels: vec![10.0, 20.0],
@@ -46,9 +46,21 @@ pub fn all_strategies() -> Vec<WalletStrategy> {
             min_entry_fdv: None,
         },
 
-        // 🎯 GUT_STRICT — GUT but only enters on SNIPE/CONVICTION lanes
-        // Hypothesis: filtering to highest-quality signals improves WR
-        // Same exit logic as GUT, just more selective entry
+        // 💰 GUT_LOCK — Take profit on the way up. Keeps the wallet funded.
+        // Sells 40% at 2x (house money), 35% at 4x, lets 25% ride.
+        // Pairs with GUT_MOON — together they enter every call at 0.25 SOL total.
+        WalletStrategy {
+            name: "GUT_LOCK",
+            sol_size: 0.125, // half size — pairs with GUT_MOON
+            stop_loss_pct: None,
+            time_stop_mins: None,
+            tp_levels: vec![2.0, 4.0, 15.0],
+            tp_exit_pcts: vec![40.0, 35.0, 25.0], // lock profit early, moonbag on rest
+            max_entry_fdv: None,
+            min_entry_fdv: None,
+        },
+
+        // 🎯 GUT_STRICT — Tighter entry, same GUT philosophy
         WalletStrategy {
             name: "GUT_STRICT",
             sol_size: 0.25,
@@ -56,7 +68,7 @@ pub fn all_strategies() -> Vec<WalletStrategy> {
             time_stop_mins: None,
             tp_levels: vec![10.0, 20.0],
             tp_exit_pcts: vec![50.0, 50.0],
-            max_entry_fdv: Some(40_000.0), // tighter FDV — only early entries
+            max_entry_fdv: Some(40_000.0),
             min_entry_fdv: None,
         },
 

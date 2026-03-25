@@ -169,8 +169,8 @@ const server = http.createServer((req, res) => {
     let trades = [];
     try { trades = JSON.parse(fs.readFileSync(WALLETS_JSON, 'utf8')) || []; } catch (_) {}
 
-    const strategies = ['GUT', 'GUT_STRICT', 'WHALE', 'MOONBAG', 'SNIPER_V2'];
-    const sizes = { GUT: 0.25, GUT_STRICT: 0.25, WHALE: 0.5, MOONBAG: 0.05, SNIPER_V2: 0.5 };
+    const strategies = ['GUT_MOON', 'GUT_LOCK', 'GUT_STRICT', 'WHALE', 'MOONBAG', 'SNIPER_V2'];
+    const sizes = { GUT_MOON: 0.125, GUT_LOCK: 0.125, GUT_STRICT: 0.25, WHALE: 0.5, MOONBAG: 0.05, SNIPER_V2: 0.5 };
 
     const stats = strategies.map(name => {
       const st = trades.filter(t => t.strategy === name);
