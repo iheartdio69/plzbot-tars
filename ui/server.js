@@ -171,6 +171,26 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  if (req.url.startsWith('/api/summary')) {
+    let positions = [], calls = [];
+    try { positions = JSON.parse(fs.readFileSync(POSITIONS_JSON, 'utf8')) || []; } catch (_) {}
+    try { calls = JSON.parse(fs.readFileSync(CALLS_JSON, 'utf8')) || []; } catch (_) {}
+
+    const open = positions.filter(p => p.status === 'Open');
+    const closed = positions.filter(p => p.status === 'Closed');
+    const callWins = calls.filter(c => c.outcome === 'WIN').length;
+    const callLosses = calls.filter(c => c.outcome === 'LOSS').length;
+    const totalCalls = calls.length;
+    const wr = (callWins + callLosses) > 0 ? Math.round(callWins/(callWins+callLosses)*100) : 0;
+    const bestMult = positions.length > 0 ? Math.max(...positions.map(p => p.peak_mult||1)) : 0;
+    const totalInvested = positions.reduce((s,p) => s + (p.sol_invested||0.1), 0);
+    const unrealizedSol = open.reduce((s,p) => s + ((p.peak_mult||1)-1)*(p.sol_invested||0.1), 0);
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ open: open.length, closed: closed.length, callWins, callLosses, totalCalls, wr, bestMult, unrealizedSol }));
+    return;
+  }
+
   if (req.url.startsWith('/api/positions')) {
     // Real live positions with current price lookup
     let positions = [];

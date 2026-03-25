@@ -571,8 +571,8 @@
 
 </div>
 
-<!-- STRATEGY CARDS ROW -->
-<div id="wallets-row" style="
+<!-- LIVE PERFORMANCE BAR -->
+<div style="
   display: grid;
   grid-template-columns: repeat(6, 1fr);
   gap: 1px;
@@ -580,16 +580,16 @@
   flex-shrink: 0;
   border-top: 1px solid var(--border);
 ">
-  <div style="grid-column: span 6; background: var(--panel); padding: 6px 14px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between;">
-    <span style="font-size:10px; text-transform:uppercase; letter-spacing:2px; color:var(--dim);">📊 Strategy Performance</span>
+  <div style="grid-column: span 6; background: var(--panel); padding: 5px 14px; border-bottom: 1px solid var(--border); display:flex; align-items:center; justify-content:space-between;">
+    <span style="font-size:10px; text-transform:uppercase; letter-spacing:2px; color:var(--dim);">📊 Live Performance</span>
     <span style="font-size:10px; color:var(--dim)" id="pos-updated">—</span>
   </div>
-  <div class="wallet-card" id="w-GUT_MOON"></div>
-  <div class="wallet-card" id="w-GUT_LOCK"></div>
-  <div class="wallet-card" id="w-GUT_STRICT"></div>
-  <div class="wallet-card" id="w-WHALE"></div>
-  <div class="wallet-card" id="w-MOONBAG"></div>
-  <div class="wallet-card" id="w-SNIPER_V2"></div>
+  <div class="wallet-card" id="perf-calls"></div>
+  <div class="wallet-card" id="perf-wr"></div>
+  <div class="wallet-card" id="perf-open"></div>
+  <div class="wallet-card" id="perf-best"></div>
+  <div class="wallet-card" id="perf-unrealized"></div>
+  <div class="wallet-card" id="perf-wallet"></div>
 </div>
 
 <footer>
@@ -854,65 +854,34 @@ async function fetchSolPrice() {
 
 async function fetchPositions() {
   try {
-    const res = await fetch('/api/positions');
+    const res = await fetch('/api/summary');
     if (!res.ok) return;
-    const data = await res.json();
-    renderStrategyCards(data);
-    document.getElementById('pos-updated').textContent =
-      `SOL $${solPrice.toFixed(0)} · W:${data.callWins} L:${data.callLosses} WR:${data.callWR}% · updated ${clock()}`;
+    const d = await res.json();
+    renderPerfBar(d);
+    document.getElementById('pos-updated').textContent = `SOL $${solPrice.toFixed(0)} · updated ${clock()}`;
   } catch (_) {}
 }
 
-function renderStrategyCards(data) {
-  // Each strategy gets the SAME calls — just different exit rules
-  // Show realized PnL (closed) + unrealized (open peak_mult) per strategy
-  const strategies = ['GUT_MOON', 'GUT_LOCK', 'GUT_STRICT', 'WHALE', 'MOONBAG', 'SNIPER_V2'];
-  const sizes = { GUT_MOON:0.125, GUT_LOCK:0.125, GUT_STRICT:0.25, WHALE:0.5, MOONBAG:0.05, SNIPER_V2:0.5 };
-
-  const allPos = [...(data.open||[]), ...(data.closed||[])];
-  const solFmt = n => (n>=0?'+':'')+n.toFixed(3)+' SOL';
-
-  for (const name of strategies) {
-    const el = document.getElementById('w-' + name);
-    if (!el) continue;
-
-    const size = sizes[name] || 0.1;
-    const closed = (data.closed||[]);
-    const open = (data.open||[]);
-
-    // Realized: from closed positions
-    const realPnl = closed.reduce((s, p) => {
-      const mult = p.peak_mult || 1;
-      return s + (mult - 1) * size;
-    }, 0);
-
-    // Unrealized: open positions at current peak
-    const unrealPnl = open.reduce((s, p) => {
-      const mult = p.peak_mult || 1;
-      return s + (mult - 1) * size;
-    }, 0);
-
-    const totalPnl = realPnl + unrealPnl;
-    const totalUsd = totalPnl * solPrice;
-    const pnlClass = totalUsd > 0 ? 'positive' : totalUsd < -0.5 ? 'negative' : 'neutral';
-    const sign = totalUsd >= 0 ? '+' : '';
-
-    const wins = closed.filter(p => (p.peak_mult||1) >= 2.2).length;
-    const losses = closed.filter(p => (p.peak_mult||1) < 1.0).length;
-    const wr = (wins+losses) > 0 ? Math.round(wins/(wins+losses)*100) : 0;
-    const best = allPos.length > 0 ? Math.max(...allPos.map(p=>p.peak_mult||1)) : 0;
-
+function renderPerfBar(d) {
+  const card = (id, label, value, cls) => {
+    const el = document.getElementById(id);
+    if (!el) return;
     el.innerHTML = `
-      <div class="wallet-name">${name.replace(/_/g,' ')}</div>
-      <div class="wallet-pnl ${pnlClass}">${sign}$${Math.abs(totalUsd).toFixed(2)}</div>
-      <div class="wallet-meta">
-        <span style="color:var(--dim);font-size:9px">${solFmt(totalPnl)}</span>
-        <span>${open.length} open / ${closed.length} closed</span>
-        <span class="wallet-wr">WR: ${wr}%</span>
-        <span class="wallet-best">Best: ${best > 0 ? best.toFixed(1)+'x' : '—'}</span>
-      </div>
+      <div class="wallet-name">${label}</div>
+      <div class="wallet-pnl ${cls || 'neutral'}" style="font-size:22px">${value}</div>
     `;
-  }
+  };
+
+  const unrUsd = (d.unrealizedSol||0) * solPrice;
+  const unrClass = unrUsd > 0 ? 'positive' : unrUsd < 0 ? 'negative' : 'neutral';
+  const wrClass = (d.wr||0) >= 50 ? 'positive' : (d.wr||0) >= 30 ? 'neutral' : 'negative';
+
+  card('perf-calls',   'Total Calls',  d.totalCalls || 0, 'neutral');
+  card('perf-wr',      'Win Rate',     (d.wr||0) + '%', wrClass);
+  card('perf-open',    'Open',         (d.open||0) + ' positions', 'neutral');
+  card('perf-best',    'Best Call',    d.bestMult > 0 ? (d.bestMult).toFixed(1)+'x' : '—', 'positive');
+  card('perf-unrealized', 'Unrealized', (unrUsd>=0?'+':'')+'$'+Math.abs(unrUsd).toFixed(2), unrClass);
+  card('perf-wallet',  'Wallet',       '$' + ((walletSol||0)*solPrice).toFixed(2), (walletSol||0) > 1.5 ? 'positive' : 'negative');
 }
 
 // ── MAIN LOOP ─────────────────────────────────────────────
@@ -920,19 +889,22 @@ setInterval(() => {
   document.getElementById('clock').textContent = clock();
 }, 1000);
 
+let walletSol = 0;
+
 async function fetchWalletBalance() {
   try {
     const [solRes, priceRes] = await Promise.all([
       fetch('/api/wallet-balance'),
       fetch('/api/sol-price')
     ]);
-    const { sol } = await solRes.json();
-    const { price } = await priceRes.json();
-    solPrice = price || 130;
-    const usd = (sol * solPrice).toFixed(2);
+    const solData = await solRes.json();
+    const priceData = await priceRes.json();
+    walletSol = solData.sol || 0;
+    solPrice = priceData.price || 130;
+    const usd = (walletSol * solPrice).toFixed(2);
     const el = document.getElementById('stat-wallet-usd');
     el.textContent = '$' + usd;
-    el.style.color = sol > 0.20 ? 'var(--accent)' : sol > 0.10 ? 'var(--warn)' : 'var(--loss)';
+    el.style.color = walletSol > 1.0 ? 'var(--accent)' : walletSol > 0.5 ? 'var(--warn)' : 'var(--loss)';
   } catch (_) {}
 }
 
