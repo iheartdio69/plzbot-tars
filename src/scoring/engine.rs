@@ -155,16 +155,41 @@ pub async fn score_and_manage(
             continue;
         }
 
-        // ── DECLINING COIN GUARD ──────────────────────────────────────
-        // If velocity is negative AND coin is more than 5 min old, it's dumping.
-        // Don't buy into a dump. This is the #1 loss pattern we're seeing.
+        // ── ENTRY QUALITY GUARD ───────────────────────────────────────
+        // Root cause of losses: buying dead coins or coins that already peaked.
+        // Every gate below addresses a specific loss pattern from real data.
+
+        // 1. Already dumped — 1h down >20% means it had its move and it's over
+        if trend.price_change_1h < -20.0 && coin_age_secs > 300 {
+            skip_velocity += 1;
+            continue;
+        }
+
+        // 2. Already pumped huge AND stalled — we'd be buying the top
+        // Exception: if 5m is still moving fast (>10%), might still have legs
+        if trend.price_change_1h > 200.0 && trend.price_change_5m < 10.0 {
+            skip_velocity += 1;
+            continue;
+        }
+
+        // 3. Negative velocity — coin is actively declining right now
         if coin_age_secs > 300 && trend.fdv_velocity_pct < -0.5 {
             skip_velocity += 1;
             continue;
         }
 
-        // Require 5m price change to be positive — don't buy something going down right now
+        // 4. Price actively dropping in last 5 min
         if trend.price_change_5m < -5.0 && coin_age_secs > 300 {
+            skip_velocity += 1;
+            continue;
+        }
+
+        // 5. REQUIRE something is happening right now
+        // Don't enter if 5m is flat AND 1h is flat — nothing is moving
+        if trend.price_change_5m.abs() < 1.0
+            && trend.price_change_1h.abs() < 5.0
+            && trend.buys_5m < 20
+            && coin_age_secs > 600 {
             skip_velocity += 1;
             continue;
         }
