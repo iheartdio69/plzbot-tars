@@ -96,7 +96,7 @@ pub async fn buy(
         "denominatedInSol": "true",
         "slippage": 15,
         "priorityFee": 0.00005,
-        "pool": "auto"
+        "pool": "pump"
     });
 
     if !api_key.is_empty() {
@@ -140,7 +140,7 @@ pub async fn sell(
         "denominatedInSol": "false",
         "slippage": 15,
         "priorityFee": 0.00005,
-        "pool": "auto"
+        "pool": "pump"
     });
 
     if !api_key.is_empty() {
