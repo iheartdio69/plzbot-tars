@@ -12,10 +12,11 @@ const PORT = 4269;
 const BOT_DATA = process.env.BOT_DATA_DIR
   || require('os').homedir() + '/.openclaw/workspace/plzbot/data';
 
-const CALLS_JSON   = path.join(BOT_DATA, 'calls.json');
-const STATE_JSON   = path.join(BOT_DATA, 'state.json');
-const LOG_FILE     = require('os').homedir() + '/Desktop/TARS/logs/bot.log';
-const WALLETS_JSON = path.join(BOT_DATA, 'paper_wallet_trades.json');
+const CALLS_JSON     = path.join(BOT_DATA, 'calls.json');
+const STATE_JSON     = path.join(BOT_DATA, 'state.json');
+const LOG_FILE       = require('os').homedir() + '/Desktop/TARS/logs/bot.log';
+const POSITIONS_JSON = path.join(BOT_DATA, 'positions.json');
+const ENV_FILE       = require('os').homedir() + '/Desktop/TARS/bots/plzbot/.env';
 
 let cachedState = null;
 let lastRead = 0;
@@ -165,29 +166,34 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  if (req.url.startsWith('/api/wallets')) {
-    let trades = [];
-    try { trades = JSON.parse(fs.readFileSync(WALLETS_JSON, 'utf8')) || []; } catch (_) {}
+  if (req.url.startsWith('/api/positions')) {
+    // Real live positions with current price lookup
+    let positions = [];
+    let calls = [];
+    try { positions = JSON.parse(fs.readFileSync(POSITIONS_JSON, 'utf8')) || []; } catch (_) {}
+    try { calls = JSON.parse(fs.readFileSync(CALLS_JSON, 'utf8')) || []; } catch (_) {}
 
-    const strategies = ['GUT_MOON', 'GUT_LOCK', 'GUT_STRICT', 'WHALE', 'MOONBAG', 'SNIPER_V2'];
-    const sizes = { GUT_MOON: 0.125, GUT_LOCK: 0.125, GUT_STRICT: 0.25, WHALE: 0.5, MOONBAG: 0.05, SNIPER_V2: 0.5 };
+    const open = positions.filter(p => p.status === 'Open');
+    const closed = positions.filter(p => p.status === 'Closed');
 
-    const stats = strategies.map(name => {
-      const st = trades.filter(t => t.strategy === name);
-      const closed = st.filter(t => t.status === 'Closed');
-      const open = st.filter(t => t.status === 'Open');
-      const wins = closed.filter(t => t.pnl_sol > 0).length;
-      const losses = closed.filter(t => t.pnl_sol <= 0).length;
-      const realizedPnl = closed.reduce((s, t) => s + (t.pnl_sol || 0), 0);
-      // Unrealized: sum of (peak_mult - 1) * sol_in for open trades
-      const unrealizedPnl = open.reduce((s, t) => s + ((t.peak_mult || 1) - 1) * (t.sol_in || sizes[name] || 0), 0);
-      const wr = (wins + losses) > 0 ? Math.round(wins / (wins + losses) * 100) : 0;
-      const best = closed.length > 0 ? Math.max(...closed.map(t => t.peak_mult || 1)) : 0;
-      return { name, total: st.length, open: open.length, wins, losses, wr, realizedPnl, unrealizedPnl, best };
-    });
+    const wins = closed.filter(p => (p.outcome||'').includes('WIN') || p.peak_mult >= 1.5).length;
+    const losses = closed.filter(p => (p.outcome||'').includes('LOSS') || p.peak_mult < 1.0).length;
+    const totalCalls = calls.length;
+    const callWins = calls.filter(c => c.outcome === 'WIN').length;
+    const callLosses = calls.filter(c => c.outcome === 'LOSS').length;
+    const callWR = (callWins + callLosses) > 0 ? Math.round(callWins/(callWins+callLosses)*100) : 0;
 
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify(stats));
+    res.end(JSON.stringify({
+      open,
+      closed,
+      wins,
+      losses,
+      totalCalls,
+      callWins,
+      callLosses,
+      callWR,
+    }));
     return;
   }
 
