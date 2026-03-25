@@ -19,9 +19,20 @@ Cargo.lock
 #  and can be added to the global gitignore or merged into this file.  For a more nuclear
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/.env
-.env
-data/
-*.session
-wallets.json
+# ── NEVER COMMIT THESE ────────────────────────────────────────────────
 .env
 .env.*
+.env.v1
+.env.v2
+.env.v3
+*.env
+secrets/
+wallets.json
+*.key
+*.pem
+
+# Data files (too large / contain sensitive wallet data)
+data/
+
+# Telegram session files
+*.session
