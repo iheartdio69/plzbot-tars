@@ -38,8 +38,12 @@ pub fn all_strategies() -> Vec<WalletStrategy> {
         // 🌙 GUT_MOON — Shoot for the big x's. Never sells early.
         // Half the position rides to 10x/20x — this is the moonshot wallet.
         // When it hits, it more than pays for all the losses.
-        // 🌙 GUT_MOON — Moonshot half. Trailing lock protects big wins.
-        // Ride to 10x/20x, but if we hit 5x and it reverses to 3x, lock 30%.
+        // ── MINIMUM EXIT: 2.2x ─────────────────────────────────────────
+        // At 0.1 SOL position size, fees eat ~5% of small profits.
+        // Never sell below 2.2x — let it ride or die.
+        // ──────────────────────────────────────────────────────────────
+
+        // 🌙 GUT_MOON — Moonshot. First floor at 2.5x, protects from there.
         WalletStrategy {
             name: "GUT_MOON",
             sol_size: 0.125,
@@ -50,30 +54,29 @@ pub fn all_strategies() -> Vec<WalletStrategy> {
             max_entry_fdv: None,
             min_entry_fdv: None,
             trailing_locks: vec![
-                // (trigger, floor, sell_pct)
-                (3.0, 1.8, 30.0),  // hit 3x → protect 1.8x → sell 30% if reverses
-                (5.0, 3.0, 30.0),  // hit 5x → protect 3x → sell 30% if reverses
-                (10.0, 6.0, 30.0), // hit 10x → protect 6x → sell 30% if reverses
+                (4.0,  2.5, 30.0),  // hit 4x → protect 2.5x → sell 30% on reversal
+                (7.0,  4.0, 30.0),  // hit 7x → protect 4x
+                (12.0, 7.0, 25.0),  // hit 12x → protect 7x
             ],
         },
 
-        // 💰 GUT_LOCK — Profit lock half. TPs + trailing floors.
+        // 💰 GUT_LOCK — Profit lock. Min first TP raised to 2.2x.
         WalletStrategy {
             name: "GUT_LOCK",
             sol_size: 0.125,
             stop_loss_pct: None,
             time_stop_mins: None,
-            tp_levels: vec![2.0, 4.0, 15.0],
+            tp_levels: vec![2.2, 5.0, 15.0],  // min 2.2x before any sale
             tp_exit_pcts: vec![40.0, 35.0, 25.0],
             max_entry_fdv: None,
             min_entry_fdv: None,
             trailing_locks: vec![
-                (2.0, 1.5, 0.0),   // hit 2x → floor at 1.5x (TP handles the sell)
-                (4.0, 2.5, 20.0),  // hit 4x → if drops to 2.5x, sell extra 20%
+                (3.0, 2.2, 0.0),   // hit 3x → floor at 2.2x (TP handles sell)
+                (5.0, 3.0, 20.0),  // hit 5x → if drops to 3x, sell extra 20%
             ],
         },
 
-        // 🎯 GUT_STRICT — Tight entry, trailing protection
+        // 🎯 GUT_STRICT — Tight entry, 2.2x minimum floor
         WalletStrategy {
             name: "GUT_STRICT",
             sol_size: 0.25,
@@ -84,13 +87,13 @@ pub fn all_strategies() -> Vec<WalletStrategy> {
             max_entry_fdv: Some(40_000.0),
             min_entry_fdv: None,
             trailing_locks: vec![
-                (3.0, 2.0, 30.0),
-                (5.0, 3.0, 30.0),
-                (10.0, 6.0, 25.0),
+                (4.0,  2.5, 30.0),
+                (7.0,  4.0, 30.0),
+                (12.0, 7.0, 25.0),
             ],
         },
 
-        // 🐳 WHALE — Biggest bets, best protection
+        // 🐳 WHALE — First TP at 5x, floor locks from 2.5x up
         WalletStrategy {
             name: "WHALE",
             sol_size: 0.5,
@@ -101,13 +104,13 @@ pub fn all_strategies() -> Vec<WalletStrategy> {
             max_entry_fdv: Some(30_000.0),
             min_entry_fdv: None,
             trailing_locks: vec![
-                (2.0, 1.5, 20.0),  // first protection — hit 2x, protect 1.5x
-                (3.0, 2.0, 20.0),  // hit 3x, protect 2x
-                (5.0, 3.5, 20.0),  // hit 5x, protect 3.5x (TP fires at 5x anyway)
+                (3.0,  2.2, 20.0),  // hit 3x → protect 2.2x minimum
+                (5.0,  3.0, 20.0),  // hit 5x → protect 3x (TP fires at 5x anyway)
+                (10.0, 6.0, 20.0),  // hit 10x → protect 6x
             ],
         },
 
-        // 🎟️ MOONBAG — Pure lottery, minimal protection
+        // 🎟️ MOONBAG — Pure lottery, no sales before 5x reversal
         WalletStrategy {
             name: "MOONBAG",
             sol_size: 0.05,
@@ -118,12 +121,13 @@ pub fn all_strategies() -> Vec<WalletStrategy> {
             max_entry_fdv: None,
             min_entry_fdv: None,
             trailing_locks: vec![
-                (5.0, 3.0, 20.0),   // at least protect something if it runs
-                (10.0, 7.0, 20.0),
+                (5.0,  3.0, 20.0),
+                (10.0, 6.0, 20.0),
+                (20.0, 12.0, 0.0),  // TP fires at 20x
             ],
         },
 
-        // 🔫 SNIPER_V2
+        // 🔫 SNIPER_V2 — Sub-$10k, first exit at 3x minimum
         WalletStrategy {
             name: "SNIPER_V2",
             sol_size: 0.5,
@@ -134,8 +138,8 @@ pub fn all_strategies() -> Vec<WalletStrategy> {
             max_entry_fdv: Some(10_000.0),
             min_entry_fdv: None,
             trailing_locks: vec![
-                (2.0, 1.5, 25.0),
-                (3.0, 2.0, 0.0),  // TP fires at 3x anyway
+                (3.0, 2.2, 0.0),   // TP fires at 3x
+                (5.0, 3.0, 25.0),  // hit 5x → if drops to 3x, sell 25% extra
             ],
         },
     ]
