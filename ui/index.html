@@ -571,19 +571,25 @@
 
 </div>
 
-<!-- LIVE POSITIONS ROW -->
-<div id="positions-row" style="
-  background: var(--panel);
+<!-- STRATEGY CARDS ROW -->
+<div id="wallets-row" style="
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 1px;
+  background: var(--border);
   flex-shrink: 0;
   border-top: 1px solid var(--border);
 ">
-  <div style="padding: 6px 14px; border-bottom: 1px solid var(--border); display:flex; align-items:center; justify-content:space-between;">
-    <span style="font-size:10px; text-transform:uppercase; letter-spacing:2px; color:var(--dim);">🔴 Live Positions</span>
+  <div style="grid-column: span 6; background: var(--panel); padding: 6px 14px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between;">
+    <span style="font-size:10px; text-transform:uppercase; letter-spacing:2px; color:var(--dim);">📊 Strategy Performance</span>
     <span style="font-size:10px; color:var(--dim)" id="pos-updated">—</span>
   </div>
-  <div id="positions-list" style="padding: 8px 14px; display:flex; flex-wrap:wrap; gap:12px; min-height:60px;">
-    <div style="color:var(--dim);font-size:11px;padding:8px 0">No open positions</div>
-  </div>
+  <div class="wallet-card" id="w-GUT_MOON"></div>
+  <div class="wallet-card" id="w-GUT_LOCK"></div>
+  <div class="wallet-card" id="w-GUT_STRICT"></div>
+  <div class="wallet-card" id="w-WHALE"></div>
+  <div class="wallet-card" id="w-MOONBAG"></div>
+  <div class="wallet-card" id="w-SNIPER_V2"></div>
 </div>
 
 <footer>
@@ -851,44 +857,62 @@ async function fetchPositions() {
     const res = await fetch('/api/positions');
     if (!res.ok) return;
     const data = await res.json();
-    renderPositions(data);
+    renderStrategyCards(data);
     document.getElementById('pos-updated').textContent =
-      `SOL $${solPrice.toFixed(0)} · W:${data.callWins} L:${data.callLosses} WR:${data.callWR}% · ${data.totalCalls} calls · updated ${clock()}`;
+      `SOL $${solPrice.toFixed(0)} · W:${data.callWins} L:${data.callLosses} WR:${data.callWR}% · updated ${clock()}`;
   } catch (_) {}
 }
 
-function renderPositions(data) {
-  const el = document.getElementById('positions-list');
-  const open = data.open || [];
+function renderStrategyCards(data) {
+  // Each strategy gets the SAME calls — just different exit rules
+  // Show realized PnL (closed) + unrealized (open peak_mult) per strategy
+  const strategies = ['GUT_MOON', 'GUT_LOCK', 'GUT_STRICT', 'WHALE', 'MOONBAG', 'SNIPER_V2'];
+  const sizes = { GUT_MOON:0.125, GUT_LOCK:0.125, GUT_STRICT:0.25, WHALE:0.5, MOONBAG:0.05, SNIPER_V2:0.5 };
 
-  if (!open.length) {
-    el.innerHTML = '<div style="color:var(--dim);font-size:11px;padding:8px 0">No open positions — watching for next call</div>';
-    return;
-  }
+  const allPos = [...(data.open||[]), ...(data.closed||[])];
+  const solFmt = n => (n>=0?'+':'')+n.toFixed(3)+' SOL';
 
-  el.innerHTML = open.map(p => {
-    const mult = p.peak_mult || 1;
-    const entryFdv = p.entry_fdv || 0;
-    const sol = p.sol_invested || 0;
-    const pnlSol = (mult - 1) * sol;
-    const pnlUsd = pnlSol * solPrice;
-    const pnlClass = pnlUsd >= 0 ? 'positive' : 'negative';
-    const sign = pnlUsd >= 0 ? '+' : '';
-    const mint = p.mint || '';
+  for (const name of strategies) {
+    const el = document.getElementById('w-' + name);
+    if (!el) continue;
 
-    return `
-      <div style="background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:10px 14px;min-width:180px;">
-        <div style="font-size:9px;color:var(--dim);margin-bottom:4px">${mint.slice(0,12)}...</div>
-        <div class="wallet-pnl ${pnlClass}" style="font-size:20px">${sign}$${Math.abs(pnlUsd).toFixed(2)}</div>
-        <div style="font-size:10px;color:var(--dim);margin-top:4px">
-          ${mult.toFixed(2)}x · ${sign}${pnlSol.toFixed(4)} SOL
-        </div>
-        <div style="font-size:10px;color:var(--dim)">Entry FDV: $${entryFdv > 0 ? (entryFdv/1000).toFixed(1)+'k' : '—'}</div>
-        <a href="https://dexscreener.com/solana/${mint}" target="_blank"
-           style="font-size:9px;color:var(--accent2);text-decoration:none">Chart →</a>
+    const size = sizes[name] || 0.1;
+    const closed = (data.closed||[]);
+    const open = (data.open||[]);
+
+    // Realized: from closed positions
+    const realPnl = closed.reduce((s, p) => {
+      const mult = p.peak_mult || 1;
+      return s + (mult - 1) * size;
+    }, 0);
+
+    // Unrealized: open positions at current peak
+    const unrealPnl = open.reduce((s, p) => {
+      const mult = p.peak_mult || 1;
+      return s + (mult - 1) * size;
+    }, 0);
+
+    const totalPnl = realPnl + unrealPnl;
+    const totalUsd = totalPnl * solPrice;
+    const pnlClass = totalUsd > 0 ? 'positive' : totalUsd < -0.5 ? 'negative' : 'neutral';
+    const sign = totalUsd >= 0 ? '+' : '';
+
+    const wins = closed.filter(p => (p.peak_mult||1) >= 2.2).length;
+    const losses = closed.filter(p => (p.peak_mult||1) < 1.0).length;
+    const wr = (wins+losses) > 0 ? Math.round(wins/(wins+losses)*100) : 0;
+    const best = allPos.length > 0 ? Math.max(...allPos.map(p=>p.peak_mult||1)) : 0;
+
+    el.innerHTML = `
+      <div class="wallet-name">${name.replace(/_/g,' ')}</div>
+      <div class="wallet-pnl ${pnlClass}">${sign}$${Math.abs(totalUsd).toFixed(2)}</div>
+      <div class="wallet-meta">
+        <span style="color:var(--dim);font-size:9px">${solFmt(totalPnl)}</span>
+        <span>${open.length} open / ${closed.length} closed</span>
+        <span class="wallet-wr">WR: ${wr}%</span>
+        <span class="wallet-best">Best: ${best > 0 ? best.toFixed(1)+'x' : '—'}</span>
       </div>
     `;
-  }).join('');
+  }
 }
 
 // ── MAIN LOOP ─────────────────────────────────────────────
@@ -915,6 +939,7 @@ async function fetchWalletBalance() {
 setInterval(fetchState, POLL_MS);
 setInterval(fetchPositions, 5000);
 setInterval(fetchWalletBalance, 15000);
+setInterval(fetchSolPrice, 60000);
 fetchState();
 fetchWalletBalance();
 fetchSolPrice().then(fetchPositions);
