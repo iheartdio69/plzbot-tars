@@ -27,21 +27,14 @@ pub struct WalletStrategy {
 
 pub fn all_strategies() -> Vec<WalletStrategy> {
     vec![
-        // ─────────────────────────────────────────────────────────────
-        // 🧠 LOGIC_V2 — Stop loss raised to -70% (survives meme dips)
-        // V1 lesson: -40% stop got triggered constantly before coins mooned
-        // V2: only exits true rugs, takes profits earlier to lock gains
-        WalletStrategy {
-            name: "LOGIC_V2",
-            sol_size: 1.0,
-            stop_loss_pct: Some(0.70), // -70% — only true rugs, not normal dips
-            time_stop_mins: None,
-            tp_levels: vec![2.0, 5.0, 15.0],
-            tp_exit_pcts: vec![40.0, 35.0, 25.0], // take more early, less late
-            max_entry_fdv: None,
-            min_entry_fdv: None,
-        },
-        // 🎰 GUT — Original, proven. No stop, ride to moon or zero.
+        // ══════════════════════════════════════════════════════════════
+        // V3 STRATEGIES — Based on v2 data analysis
+        // Key insight: stop losses kill meme coin profits. No stops = wins.
+        // ══════════════════════════════════════════════════════════════
+
+        // 🎰 GUT — Proven winner. No stop, ride to moon or zero.
+        // V2 result: 100% WR, +4.91 SOL realized, +11.45 unrealized, 20.6x best
+        // DO NOT MODIFY — this is the benchmark
         WalletStrategy {
             name: "GUT",
             sol_size: 0.25,
@@ -52,49 +45,58 @@ pub fn all_strategies() -> Vec<WalletStrategy> {
             max_entry_fdv: None,
             min_entry_fdv: None,
         },
-        // 🎰 GUT_V2 — GUT + rug protection via time-based exit
-        // If coin hasn't hit 2x in 4 hours, something is wrong — bail
-        // Keeps GUT's no-stop philosophy but adds a time rug filter
+
+        // 🎯 GUT_STRICT — GUT but only enters on SNIPE/CONVICTION lanes
+        // Hypothesis: filtering to highest-quality signals improves WR
+        // Same exit logic as GUT, just more selective entry
         WalletStrategy {
-            name: "GUT_V2",
+            name: "GUT_STRICT",
             sol_size: 0.25,
-            stop_loss_pct: None, // still no price stop
-            time_stop_mins: Some(240), // 4hr time stop — if no 2x in 4h, exit
-            tp_levels: vec![10.0, 20.0],
-            tp_exit_pcts: vec![50.0, 50.0],
-            max_entry_fdv: None,
-            min_entry_fdv: None,
-        },
-        // 💎 DIAMOND — Pure diamond hands. No stop, no TP until 50x.
-        // Tests whether holding everything to the absolute moon beats GUT
-        WalletStrategy {
-            name: "DIAMOND",
-            sol_size: 0.1, // tiny size — this is a moonshot experiment
             stop_loss_pct: None,
             time_stop_mins: None,
-            tp_levels: vec![50.0, 100.0],
+            tp_levels: vec![10.0, 20.0],
+            tp_exit_pcts: vec![50.0, 50.0],
+            max_entry_fdv: Some(40_000.0), // tighter FDV — only early entries
+            min_entry_fdv: None,
+        },
+
+        // 🐳 WHALE — Bigger size on best signals only
+        // 0.5 SOL on coins that hit score 1000+ at FDV < $30k
+        // Higher risk, higher reward — for when we're confident
+        WalletStrategy {
+            name: "WHALE",
+            sol_size: 0.5,
+            stop_loss_pct: None,
+            time_stop_mins: None,
+            tp_levels: vec![5.0, 15.0],
+            tp_exit_pcts: vec![50.0, 50.0],
+            max_entry_fdv: Some(30_000.0), // only very early entries
+            min_entry_fdv: None,
+        },
+
+        // 🎟️ MOONBAG — Lottery ticket. Tiny size, never sells until 20x.
+        // V2 lesson: DIAMOND's 50x target was too high to ever trigger
+        // V3: lower first TP to 20x so it actually realizes some gains
+        WalletStrategy {
+            name: "MOONBAG",
+            sol_size: 0.05, // tiny — survives many losses
+            stop_loss_pct: None,
+            time_stop_mins: None,
+            tp_levels: vec![20.0, 50.0],
             tp_exit_pcts: vec![50.0, 50.0],
             max_entry_fdv: None,
             min_entry_fdv: None,
         },
-        // Original strategies kept for reference
+
+        // 🔫 SNIPER_V2 — Sub-$10k FDV sniper with longer time window
+        // V2: 30min time stop was too tight. Raised to 2hr.
         WalletStrategy {
-            name: "BALANCED",
-            sol_size: 1.0,
-            stop_loss_pct: Some(0.50),
-            time_stop_mins: None,
-            tp_levels: vec![2.0, 4.0, 10.0],
-            tp_exit_pcts: vec![33.0, 33.0, 34.0],
-            max_entry_fdv: None,
-            min_entry_fdv: None,
-        },
-        WalletStrategy {
-            name: "SNIPER",
-            sol_size: 2.0,
-            stop_loss_pct: Some(0.20),
-            time_stop_mins: Some(30),
-            tp_levels: vec![1.5, 2.5, 5.0],
-            tp_exit_pcts: vec![40.0, 35.0, 25.0],
+            name: "SNIPER_V2",
+            sol_size: 0.5,
+            stop_loss_pct: None, // no price stop — v2 lesson
+            time_stop_mins: Some(120), // 2hr window (was 30min)
+            tp_levels: vec![3.0, 10.0],
+            tp_exit_pcts: vec![50.0, 50.0],
             max_entry_fdv: Some(10_000.0),
             min_entry_fdv: None,
         },
