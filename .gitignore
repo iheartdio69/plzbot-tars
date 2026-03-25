@@ -23,3 +23,5 @@ Cargo.lock
 data/
 *.session
 wallets.json
+.env
+.env.*
